@@ -25,18 +25,7 @@ const icons = {
 
 $$('[data-icon]').forEach(el => { const key = el.dataset.icon.replace(/-([a-z])/g,(_,c)=>c.toUpperCase()); el.innerHTML = icons[key] || ''; });
 
-const demoTracks = [
-  { id:'afterglow', title:'Afterglow', artist:'Morrow Sessions', album:'Nightdrive', genre:'ambient', mood:'late night', bpm:92, art:'linear-gradient(145deg,#62677a,#262832 54%,#111217)', src:'assets/audio/afterglow.wav', source:'demo' },
-  { id:'glasshouse', title:'Glasshouse', artist:'Morrow Sessions', album:'Still Moving', genre:'electronic', mood:'focus', bpm:112, art:'linear-gradient(145deg,#8e8a97,#383740 52%,#15151b)', src:'assets/audio/glasshouse.wav', source:'demo' },
-  { id:'northbound', title:'Northbound', artist:'Morrow Sessions', album:'Lines', genre:'indie', mood:'drive', bpm:124, art:'linear-gradient(145deg,#6e7c83,#2b3438 50%,#101416)', src:'assets/audio/northbound.wav', source:'demo' },
-  { id:'bluehours', title:'Blue Hours', artist:'Morrow Sessions', album:'Nightdrive', genre:'ambient', mood:'late night', bpm:84, art:'linear-gradient(145deg,#59637c,#222738 50%,#0e1017)', src:'assets/audio/bluehours.wav', source:'demo' },
-  { id:'lowtide', title:'Low Tide', artist:'Morrow Sessions', album:'Still Moving', genre:'electronic', mood:'focus', bpm:105, art:'linear-gradient(145deg,#82786e,#35312d 50%,#141210)', src:'assets/audio/lowtide.wav', source:'demo' },
-  { id:'tomorrowlight', title:'Tomorrowlight', artist:'Morrow Sessions', album:'Lines', genre:'indie', mood:'morning', bpm:118, art:'linear-gradient(145deg,#a4a09a,#4b4844 48%,#191816)', src:'assets/audio/tomorrowlight.wav', source:'demo' },
-  { id:'slowcurrent', title:'Slow Current', artist:'Morrow Sessions', album:'Lowlight', genre:'ambient', mood:'calm', bpm:78, art:'linear-gradient(145deg,#777f82,#323638 48%,#121416)', src:'assets/audio/slowcurrent.wav', source:'demo' },
-  { id:'openwindow', title:'Open Window', artist:'Morrow Sessions', album:'Lowlight', genre:'electronic', mood:'morning', bpm:110, art:'linear-gradient(145deg,#99958d,#3f3c37 48%,#151412)', src:'assets/audio/openwindow.wav', source:'demo' },
-];
-
-const catalog = new Map(demoTracks.map(t => [t.id, t]));
+const catalog = new Map();
 const savedTracks = JSON.parse(localStorage.getItem('morrow.savedTracks') || '{}');
 Object.values(savedTracks).forEach(t => { if (t?.id) catalog.set(t.id, {...t, source:'youtube'}); });
 
@@ -107,7 +96,7 @@ function setSourceStatus(status) {
   state.sourceStatus = status;
   const el = $('#sourceStatus');
   if (!el) return;
-  const labels = { connecting:'Connecting', online:'InnerTube', offline:'Demo fallback' };
+  const labels = { connecting:'Connecting', online:'InnerTube', offline:'Unavailable' };
   el.textContent = labels[status] || status;
   el.classList.toggle('muted', status !== 'online');
 }
@@ -162,7 +151,6 @@ async function api(action, payload = {}) {
 }
 
 function audioUrl(t) {
-  if (t.source !== 'youtube') return t.src;
   const {hl, gl} = locale();
   const params = new URLSearchParams({ v:t.videoId || t.id, hl, gl });
   if (state.visitorData) params.set('visitorData', state.visitorData);
@@ -198,12 +186,12 @@ function row(t) {
 
 function homeTracks() {
   const remote = state.homeIds.map(getTrack).filter(Boolean);
-  return remote.length ? remote : demoTracks;
+  return remote;
 }
 
 function renderHome() {
   const source = homeTracks();
-  const hero = source[0] || demoTracks[0];
+  const hero = source[0];
   const quicks = source.slice(0, 6);
   const repeats = source.slice(6, 10).length >= 3 ? source.slice(6, 10) : source.slice(0, 4);
   const recent = source.slice(2, 8);
@@ -214,14 +202,14 @@ function renderHome() {
         <h1>Keep listening.</h1>
         <p>Search YouTube Music, start one track and Morrow builds a continuous radio around it.</p>
         <div class="hero-actions">
-          <button class="primary-btn" data-play="${esc(hero.id)}">${icons.play}<span>Play radio</span></button>
+          ${hero ? `<button class="primary-btn" data-play="${esc(hero.id)}">${icons.play}<span>Play radio</span></button>` : ''}
           <button class="secondary-btn" data-open-queue>${icons.queue}<span>View queue</span></button>
         </div>
       </div>
     </div>
 
     <section class="section">
-      <div class="section-head"><div><h2>Made for now</h2><p>${state.sourceStatus === 'online' ? 'Fresh from YouTube Music.' : 'Demo tracks until InnerTube connects.'}</p></div><button class="text-btn" data-view="discover">Explore more</button></div>
+      <div class="section-head"><div><h2>Made for now</h2><p>${state.sourceStatus === 'online' ? 'Fresh from YouTube Music.' : 'Search YouTube Music to begin.'}</p></div><button class="text-btn" data-view="discover">Explore more</button></div>
       <div class="quick-grid">${quicks.map(quick).join('')}</div>
     </section>
 
@@ -286,7 +274,7 @@ function renderSearch() {
   let body;
   if (state.searchStatus === 'loading' && !hits.length) body = `<div class="empty-state"><strong>Searching YouTube Music…</strong>Morrow is loading songs for “${esc(q)}”.</div>`;
   else if (hits.length) body = `<div class="list">${hits.map(row).join('')}</div>`;
-  else if (state.searchStatus === 'error') body = `<div class="empty-state"><strong>InnerTube isn’t reachable.</strong>The demo still works. Deploy this project with its Netlify functions to enable YouTube Music.</div>`;
+  else if (state.searchStatus === 'error') body = `<div class="empty-state"><strong>InnerTube isn’t reachable.</strong>Check the Netlify functions and try again.</div>`;
   else body = `<div class="empty-state"><strong>Nothing matched.</strong>Try another title or artist.</div>`;
 
   view.innerHTML = `
@@ -314,25 +302,12 @@ function recommendations(limit = 8, seed = currentTrack()) {
   const pool = homeTracks().length ? homeTracks() : allKnownTracks();
   const scored = pool.map(t => {
     let score = Math.random() * .45;
-    if (seed && t.id !== seed.id && seed.source === 'demo' && t.source === 'demo') {
-      if (t.genre === seed.genre) score += 1.5;
-      if (t.mood === seed.mood) score += 1.2;
-      if (Number.isFinite(t.bpm) && Number.isFinite(seed.bpm)) score += Math.max(0, 1 - Math.abs(t.bpm-seed.bpm)/40);
-    }
     score -= (state.playedCount[t.id] || 0) * .08;
     if (state.likes.has(t.id)) score += .28;
     if (t.id === state.currentId) score -= 10;
     return {t,score};
   });
   return scored.sort((a,b)=>b.score-a.score).slice(0,limit).map(x=>x.t);
-}
-
-function buildDemoQueue(startId) {
-  const seed = getTrack(startId);
-  const rest = recommendations(demoTracks.length, seed).filter(t => t.source === 'demo' && t.id !== startId);
-  state.queue = [startId, ...rest.map(t=>t.id)];
-  state.queueIndex = 0;
-  renderQueue();
 }
 
 async function hydrateRadio(seedId) {
@@ -362,7 +337,7 @@ async function playTrack(id, {keepQueue=false} = {}) {
     if (t.source === 'youtube') {
       state.queue = [id];
       state.queueIndex = 0;
-    } else buildDemoQueue(id);
+    }
   } else state.queueIndex = state.queue.indexOf(id);
 
   if (state.currentId !== id || !audio.src) {
@@ -393,8 +368,7 @@ async function playTrack(id, {keepQueue=false} = {}) {
 }
 
 function togglePlay() {
-  const fallback = homeTracks()[0] || demoTracks[0];
-  if (!state.currentId) return playTrack(fallback.id);
+  if (!state.currentId) return showToast('Search for a song to start playback.');
   if (audio.paused) audio.play().then(()=>{state.isPlaying=true;syncPlaybackUI();}).catch(()=>showToast('Could not start playback.'));
   else { audio.pause(); state.isPlaying=false; syncPlaybackUI(); }
 }

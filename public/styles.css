@@ -1,3 +1,7 @@
+:is(.netlify-badge, #netlify-badge, iframe[title*="Netlify" i]) {
+  display: none !important;
+}
+
 :root {
   color-scheme: dark;
   --bg: #09090c;

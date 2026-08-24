@@ -11,7 +11,6 @@ Morrow is an installable music-player PWA with YouTube Music search, InnerTube r
 - Local library/history
 - iPhone, iPad and desktop UI
 - Installable PWA + offline app shell
-- Local demo catalog if InnerTube is unavailable
 
 ## Deploy
 This build is configured for **Netlify**.
@@ -21,7 +20,7 @@ This build is configured for **Netlify**.
 3. The included Function handles InnerTube search/home/radio requests.
 4. The included Edge Function streams audio through `/api/audio` so Safari can play it reliably without browser CORS issues.
 
-There is no separate server for you to run or maintain.
+There is no separate server for you to run or maintain. Morrow uses InnerTube exclusively; if the bridge is unavailable, no local audio fallback is shown.
 
 ## iPhone / iPad
 Start the first track with a tap. After that, autoplay can continue automatically and Media Session controls allow background/lock-screen playback. Adding Morrow to the Home Screen gives the most app-like experience.
@@ -32,7 +31,6 @@ Start the first track with a tap. After that, autoplay can continue automaticall
 - `netlify/edge-functions/audio.mjs` — streamed audio/HLS bridge
 - `netlify.toml` — Netlify routing
 - `public/sw.js` — offline app shell
-- `public/assets/audio/*` — synthetic fallback demo tracks
 
 ## InnerTube
 The implementation follows the same private YouTube/YouTube Music endpoints exposed by the open-source `tombulled/innertube` project. Client values are kept in one place at the top of `netlify/functions/innertube.mjs` so they are easy to update when YouTube changes them.

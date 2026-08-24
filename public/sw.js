@@ -1,8 +1,6 @@
-const CACHE = 'morrow-v2';
+const CACHE = 'morrow-v3';
 const APP = [
-  './', './index.html', './styles.css', './app.js', './manifest.webmanifest',
-  './assets/audio/afterglow.wav', './assets/audio/glasshouse.wav', './assets/audio/northbound.wav', './assets/audio/bluehours.wav',
-  './assets/audio/lowtide.wav', './assets/audio/tomorrowlight.wav', './assets/audio/slowcurrent.wav', './assets/audio/openwindow.wav'
+  './', './index.html', './styles.css', './app.js', './manifest.webmanifest'
 ];
 
 self.addEventListener('install', e => e.waitUntil(caches.open(CACHE).then(c => c.addAll(APP))));

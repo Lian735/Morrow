@@ -35,7 +35,17 @@ async function proxyUpstream(request, upstreamUrl) {
   else if (signedClient === 'IOS') headers.set('user-agent', 'com.google.ios.youtube/20.11.6 (iPhone10,4; U; CPU iOS 16_7_7 like Mac OS X)');
   else headers.set('user-agent', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.5 Safari/605.1.15');
 
-  const upstream = await fetch(upstreamUrl, { headers, redirect: 'follow' });
+  const upstream = await fetch(upstreamUrl, {
+    method: request.method,
+    headers,
+    redirect: 'follow'
+  });
+  if (!upstream.ok) {
+    return new Response(`Upstream audio failed (${upstream.status})`, {
+      status: upstream.status,
+      headers: { 'cache-control': 'no-store', 'access-control-allow-origin': '*' }
+    });
+  }
   const type = upstream.headers.get('content-type') || '';
   const resolvedUpstreamUrl = upstream.url || upstreamUrl;
   const isHls = type.includes('mpegurl') || new URL(resolvedUpstreamUrl).pathname.endsWith('.m3u8');
@@ -51,7 +61,7 @@ async function proxyUpstream(request, upstreamUrl) {
       if (!allowedUpstream(absolute)) return line;
       return `/api/audio?u=${encodeURIComponent(b64url(absolute))}`;
     }).join('\n');
-    return new Response(rewritten, {
+    return new Response(request.method === 'HEAD' ? null : rewritten, {
       status: upstream.status,
       headers: {
         'content-type': 'application/vnd.apple.mpegurl',
@@ -68,7 +78,7 @@ async function proxyUpstream(request, upstreamUrl) {
   }
   out.set('cache-control', 'private, max-age=60');
   out.set('access-control-allow-origin', '*');
-  return new Response(upstream.body, { status: upstream.status, headers: out });
+  return new Response(request.method === 'HEAD' ? null : upstream.body, { status: upstream.status, headers: out });
 }
 
 export default async (request) => {
