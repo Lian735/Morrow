@@ -82,6 +82,14 @@ let youtubeReadyPromise = null;
 let youtubeFallbackFor = null;
 let playbackPosition = Number(restoredPlayback?.position || 0);
 
+function normalizePlaybackRate(player = youtubePlayer) {
+  if (!player?.setPlaybackRate) return;
+  try {
+    if (Number(player.getPlaybackRate?.() || 1) !== 1) player.setPlaybackRate(1);
+    else player.setPlaybackRate(1);
+  } catch {}
+}
+
 function esc(value) {
   return String(value ?? '').replace(/[&<>'"]/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;' }[char]));
 }
@@ -213,11 +221,12 @@ function youtubeReady() {
         events: {
           onReady: event => {
             event.target.setVolume(audio.volume * 100);
+            normalizePlaybackRate(event.target);
             if (playbackPosition > 0) event.target.seekTo(playbackPosition, false);
             resolve(event.target);
           },
           onStateChange: event => {
-            if (event.data === YT.PlayerState.PLAYING) { $('#miniPlayer').classList.remove('is-buffering'); setPlaying(true); }
+            if (event.data === YT.PlayerState.PLAYING) { normalizePlaybackRate(event.target); $('#miniPlayer').classList.remove('is-buffering'); setPlaying(true); }
             else if (event.data === YT.PlayerState.PAUSED) { setPlaying(false); persist(); }
             else if (event.data === YT.PlayerState.BUFFERING) $('#miniPlayer').classList.add('is-buffering');
             else if (event.data === YT.PlayerState.ENDED) { setPlaying(false); nextTrack(false); }
@@ -490,6 +499,7 @@ async function recoverYouTubePlayback(track) {
     if (serial !== recoverySerial) return;
     track.playbackVideoId = data.videoId;
     const player = await youtubeReady();
+    normalizePlaybackRate(player);
     player.loadVideoById(data.videoId);
   } catch (error) {
     state.playIntent = false;
@@ -528,6 +538,7 @@ async function playTrack(id, { keepQueue = false, buildRadio = true } = {}) {
     try {
       const player = await youtubeReady();
       const videoId = track.playbackVideoId || track.videoId || track.id;
+      normalizePlaybackRate(player);
       if (changed || player.getVideoData?.().video_id !== videoId) player.loadVideoById(videoId);
       else player.playVideo();
     } catch (error) {
@@ -547,6 +558,7 @@ function togglePlay() {
   if (!state.isPlaying) {
     state.playIntent = true;
     if (PREVIEW_MODE) return showToast('Visual preview — playback is not connected.');
+    normalizePlaybackRate(youtubePlayer);
     youtubePlayer.playVideo();
   } else {
     state.playIntent = false;
@@ -951,6 +963,7 @@ render();
 youtubeReady().then(player => {
   if (!currentTrack() || PREVIEW_MODE) return;
   const track=currentTrack();
+  normalizePlaybackRate(player);
   player.cueVideoById({ videoId:track.playbackVideoId || track.videoId || track.id, startSeconds:playbackPosition });
   updateMediaSession(track);
 }).catch(error=>console.warn('YouTube player unavailable:',error));
