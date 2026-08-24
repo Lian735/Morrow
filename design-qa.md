@@ -20,7 +20,8 @@ Blocked with the full-view capture. The player, contextual song menu, home hiera
 - Nine automated tests pass.
 - Normal shell contains exactly one visible MiniPlayer; fullscreen Now Playing is hidden until opened.
 - Track context menu is hidden by default and mounted only when a song overflow action is invoked.
-- Native `<audio>` is the primary playback lifecycle; the YouTube iframe player is no longer used for playback.
+- A permanently mounted YouTube IFrame is the playback lifecycle and remains outside the visible viewport.
+- Safari background playback is reported as foreground-only instead of falsely shown as supported.
 - Media Session handlers cover play, pause, previous, next, seek, and stop.
 - The fixed visual palette is neutral black, white, and gray; artwork supplies content color.
 

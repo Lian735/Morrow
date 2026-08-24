@@ -693,21 +693,21 @@ function detectBackgroundPlayback() {
   const platformNote = $('#platformNote');
   const hasYouTubePlayback = typeof HTMLIFrameElement !== 'undefined';
   const hasMediaSession = 'mediaSession' in navigator;
-  const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
   const isiOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
   if (!hasYouTubePlayback) {
     status.textContent = 'Unavailable';
     note.textContent = 'This browser cannot initialize the embedded music player.';
-  } else if (hasMediaSession) {
-    status.textContent = 'Supported';
-    note.textContent = 'System controls are connected to Morrow playback.';
   } else {
-    status.textContent = 'Best effort';
-    note.textContent = 'Playback works, but system controls are not available here.';
+    status.textContent = isiOS ? 'Foreground only' : 'Browser controlled';
+    note.textContent = isiOS
+      ? 'Safari suspends embedded YouTube playback after leaving the app or locking the device.'
+      : hasMediaSession
+        ? 'System controls are connected, but background playback remains controlled by the browser.'
+        : 'Playback is available while Morrow remains active.';
   }
-  platformNote.textContent = isiOS && !standalone
-    ? 'For the most reliable iPhone and iPad playback, add Morrow to the Home Screen and start the first track with a tap. iOS may still suspend embedded playback when the device locks.'
-    : 'Morrow keeps its YouTube playback surface mounted and connects supported operating-system media controls. Browser background restrictions can still apply.';
+  platformNote.textContent = isiOS
+    ? 'Reliable background audio on iPhone and iPad requires a licensed direct audio source played through a native media element. The YouTube embedded player cannot provide that mode.'
+    : 'Morrow keeps the YouTube playback surface mounted and connects supported operating-system media controls without claiming guaranteed background playback.';
 }
 
 function openContextMenu(id, anchor) {

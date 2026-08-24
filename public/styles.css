@@ -159,7 +159,8 @@ kbd { padding: 3px 7px; border: 1px solid var(--line-strong); border-radius: 6px
   transition: background 140ms ease;
 }
 .play-button:hover { background: #fff; }
-.play-button .ph-fill { font-size: 20px; margin-left: 2px; }
+.play-button .ph-fill { font-size: 20px; }
+.play-button .ph-play { transform: translateX(1.75px); }
 
 .art { position: relative; overflow: hidden; background-color: #242426; background-image: var(--art-image); background-position: center; background-size: cover; }
 
@@ -278,6 +279,7 @@ input[type="range"]:hover::-webkit-slider-thumb, input[type="range"]:focus-visib
 .full-controls { margin-top: 26px; display: flex; align-items: center; justify-content: space-between; }
 .full-play { width: 68px; height: 68px; }
 .full-play .ph-fill { font-size: 27px; }
+.full-play .ph-play { transform: translateX(2.25px); }
 
 .modal-card { position: absolute; width: min(560px, calc(100vw - 28px)); left: 50%; top: 50%; padding: 22px; border: 1px solid var(--line-strong); border-radius: 21px; background: #19191b; opacity: 0; transform: translate(-50%,-47%) scale(.98); transition: opacity 160ms ease, transform 180ms var(--ease); }
 .modal.is-open .modal-card { opacity: 1; transform: translate(-50%,-50%) scale(1); }
