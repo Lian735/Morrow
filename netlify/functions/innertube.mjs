@@ -388,6 +388,60 @@ export async function resolvePlayer(videoId, session = {}, verifyCandidate = nul
   throw err;
 }
 
+const normalizedSearchText = (value) => String(value || '')
+  .normalize('NFKD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .toLowerCase()
+  .replace(/[^a-z0-9]+/g, ' ')
+  .trim();
+
+export function rankPublicFallbacks(tracks, title, artist, rejectedId = '') {
+  const wantedTitle = normalizedSearchText(title);
+  const wantedArtist = normalizedSearchText(artist);
+  const unwantedVersions = /\b(live|karaoke|cover|remix|mashup|instrumental|slowed|sped up|reaction)\b/;
+
+  return tracks
+    .filter(track => track?.videoId && track.videoId !== rejectedId)
+    .map((track, index) => {
+      const trackTitle = normalizedSearchText(track.title);
+      const trackArtist = normalizedSearchText(track.artist);
+      let score = -index / 100;
+      if (trackTitle === wantedTitle) score += 120;
+      else if (trackTitle.includes(wantedTitle) || wantedTitle.includes(trackTitle)) score += 55;
+      if (wantedArtist && trackArtist === wantedArtist) score += 60;
+      else if (wantedArtist && (trackArtist.includes(wantedArtist) || wantedArtist.includes(trackArtist))) score += 35;
+      if (/\bofficial\b/.test(trackTitle)) score += 8;
+      if (!unwantedVersions.test(wantedTitle) && unwantedVersions.test(trackTitle)) score -= 35;
+      return { track, score };
+    })
+    .sort((a, b) => b.score - a.score)
+    .map(item => item.track);
+}
+
+export async function resolvePublicFallback({ title, artist, rejectedId }, session = {}, verifyCandidate = null) {
+  const query = `${String(title || '').trim()} ${String(artist || '').trim()}`.trim().slice(0, 240);
+  if (!query) throw new Error('Missing metadata for public playback fallback.');
+
+  const data = await innerTube('search', { query }, 'YTMUSIC', session);
+  const visitorData = responseVisitorData(data) || session.visitorData || null;
+  const tracks = rankPublicFallbacks(extractTracks(data, 30), title, artist, rejectedId).slice(0, 6);
+  const errors = [];
+
+  for (const track of tracks) {
+    try {
+      const resolved = await resolvePlayer(track.videoId, { ...session, visitorData }, verifyCandidate);
+      return { ...resolved, fallbackVideoId: track.videoId, fallbackTitle: track.title };
+    } catch (err) {
+      errors.push(`${track.videoId}: ${err.message}`);
+    }
+  }
+
+  const err = new Error('No public playback fallback was available for this track.');
+  err.status = 502;
+  err.details = errors;
+  throw err;
+}
+
 const json = (status, body) => new Response(JSON.stringify(body), {
   status,
   headers: {

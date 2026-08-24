@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { proxyUpstream } from '../netlify/edge-functions/audio.mjs';
-import { resolvePlayer } from '../netlify/functions/innertube.mjs';
+import { rankPublicFallbacks, resolvePlayer } from '../netlify/functions/innertube.mjs';
 
 const realFetch = globalThis.fetch;
 
@@ -109,4 +109,16 @@ test('falls back to the next InnerTube client when a signed stream is unusable',
   assert.deepEqual(checked, ['ANDROID_VR', 'IOS']);
   assert.equal(result.client, 'IOS');
   assert.equal(playerCalls, 2);
+});
+
+test('ranks a matching public video above remixes and unrelated results', () => {
+  const ranked = rankPublicFallbacks([
+    { videoId: 'mashup', title: 'AVICII & Rick Astley Mashup', artist: 'Uploader' },
+    { videoId: 'official', title: 'Never Gonna Give You Up', artist: 'Rick Astley' },
+    { videoId: 'remaster', title: 'Never Gonna Give You Up (2022 Remaster)', artist: 'Rick Astley' },
+    { videoId: 'live', title: 'Never Gonna Give You Up Live', artist: 'Rick Astley' }
+  ], 'Never Gonna Give You Up', 'Rick Astley', 'original');
+
+  assert.equal(ranked[0].videoId, 'official');
+  assert.equal(ranked.at(-1).videoId, 'mashup');
 });

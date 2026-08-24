@@ -1,4 +1,4 @@
-import { resolvePlayer } from '../functions/innertube.mjs';
+import { resolvePlayer, resolvePublicFallback } from '../functions/innertube.mjs';
 
 const CLIENT_USER_AGENTS = {
   ANDROID_VR: 'com.google.android.apps.youtube.vr.oculus/1.65.10 (Linux; U; Android 12L; eureka-user Build/SQ3A.220605.009.A1) gzip',
@@ -146,10 +146,18 @@ export default async (request) => {
       gl: (url.searchParams.get('gl') || 'US').slice(0, 3),
       visitorData: url.searchParams.get('visitorData') || null
     };
-    let verifiedResponse = null;
-    await resolvePlayer(videoId, session, async (candidate) => {
+    const verifyCandidate = async (candidate) => {
       verifiedResponse = await proxyUpstream(request, candidate);
-    });
+    };
+    let verifiedResponse = null;
+    try {
+      await resolvePlayer(videoId, session, verifyCandidate);
+    } catch (primaryError) {
+      const title = (url.searchParams.get('title') || '').trim().slice(0, 160);
+      const artist = (url.searchParams.get('artist') || '').trim().slice(0, 120);
+      if (!title) throw primaryError;
+      await resolvePublicFallback({ title, artist, rejectedId: videoId }, session, verifyCandidate);
+    }
     return verifiedResponse;
   } catch (error) {
     console.error('Morrow audio error:', error?.message || error);
