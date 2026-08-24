@@ -1,4 +1,4 @@
-const CACHE = 'morrow-v6';
+const CACHE = 'morrow-v7';
 const APP = [
   './', './index.html', './styles.css', './app.js', './manifest.webmanifest'
 ];
