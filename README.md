@@ -1,12 +1,12 @@
 # Morrow
 
-Morrow is an installable music-player PWA with YouTube Music search, InnerTube radio/autoplay and background playback.
+Morrow is an installable music-player PWA with YouTube Music search, InnerTube radio/autoplay and Media Session controls.
 
 ## Included
 - YouTube Music search through the unofficial InnerTube endpoints
 - Real track playback
 - YouTube Music `next`/radio queue for autoplay
-- Background playback + lock-screen/media controls
+- Lock-screen/media controls where supported
 - Queue, seek, previous/next, shuffle and likes
 - Local library/history, public playlist discovery and following
 - Contextual song actions for queueing, playlists, radio and taste controls
@@ -27,7 +27,10 @@ There is no separate server for you to run or maintain. Morrow uses InnerTube ex
 ## iPhone / iPad
 Start the first track with a tap. Morrow keeps the required YouTube player mounted outside the visible viewport and connects play/pause, previous/next, seeking and artwork to Media Session where supported. Adding Morrow to the Home Screen generally gives the browser the best chance to preserve the session.
 
-Background playback remains subject to browser and operating-system limits. Low Power Mode, memory pressure, network loss or a browser that does not expose Media Session can still suspend a web app; Morrow reports that capability honestly in Settings instead of claiming universal support.
+Safari suspends embedded YouTube playback when the app is backgrounded or the device is locked. YouTube's API policies also prohibit extracting audio from videos or enabling background play for the embedded player. Reliable iPhone/iPad background audio therefore requires a separately licensed direct audio source; Morrow reports the current limitation honestly in Settings.
+
+## Icons
+Interface icons come from the official `@phosphor-icons/web` package (Phosphor Icons, MIT). The font files are vendored in `public/vendor/phosphor` so the interface does not depend on an icon CDN.
 
 ## Files
 - `public/app.js` — Morrow UI, player, search, queue and autoplay

@@ -41,3 +41,9 @@ test('visual tokens stay neutral instead of using a fixed accent color', () => {
   assert.match(css, /--white: #f7f7f5/);
   assert.match(css, /--bg: #0b0b0c/);
 });
+
+test('play glyph is optically centered and Safari background limits are explicit', () => {
+  assert.match(css, /\.play-button \.ph-play \{[^}]*translateX\(1\.75px\)/s);
+  assert.match(app, /status\.textContent = isiOS \? 'Foreground only'/);
+  assert.match(app, /Safari suspends embedded YouTube playback/);
+});

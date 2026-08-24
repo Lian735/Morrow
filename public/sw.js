@@ -1,4 +1,4 @@
-const CACHE = 'morrow-v9';
+const CACHE = 'morrow-v10';
 const APP = [
   './', './index.html', './styles.css', './app.js', './manifest.webmanifest',
   './assets/morrow-logo.png',
