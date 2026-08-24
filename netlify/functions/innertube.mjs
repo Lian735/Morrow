@@ -161,6 +161,21 @@ function parsePanel(renderer) {
   };
 }
 
+function parseVideo(renderer) {
+  const videoId = renderer.videoId;
+  if (!videoId) return null;
+  return {
+    id: videoId,
+    videoId,
+    title: text(renderer.title) || 'Unknown title',
+    artist: text(renderer.ownerText) || text(renderer.longBylineText) || 'YouTube',
+    album: '',
+    duration: parseDuration(renderer.lengthText),
+    image: bestThumb(renderer),
+    source: 'youtube'
+  };
+}
+
 function uniqueTracks(items, limit = 50) {
   const seen = new Set();
   const out = [];
@@ -181,6 +196,10 @@ function extractTracks(data, limit = 40) {
 
 function extractPanelTracks(data, limit = 50) {
   return uniqueTracks(walk(data, 'playlistPanelVideoRenderer').map(parsePanel).filter(Boolean), limit);
+}
+
+function extractPublicVideos(data, limit = 30) {
+  return uniqueTracks(walk(data, 'videoRenderer').map(parseVideo).filter(Boolean), limit);
 }
 
 function findAutomix(data) {
@@ -327,39 +346,58 @@ async function tryPlayer(videoId, clientKey, session) {
   return { data, format, hls, meta };
 }
 
-export async function resolvePlayer(videoId, session) {
+function playerCandidates(result, preferHls = false) {
+  const audio = result.format ? {
+    streamUrl: result.format.url,
+    streamType: 'audio',
+    mimeType: result.format.mimeType || '',
+    bitrate: Number(result.format.averageBitrate || result.format.bitrate || 0) || null,
+    contentLength: result.format.contentLength ? Number(result.format.contentLength) : null,
+    ...result.meta
+  } : null;
+  const hls = result.hls ? {
+    streamUrl: result.hls,
+    streamType: 'hls',
+    mimeType: 'application/vnd.apple.mpegurl',
+    bitrate: null,
+    contentLength: null,
+    ...result.meta
+  } : null;
+  return (preferHls ? [hls, audio] : [audio, hls]).filter(Boolean);
+}
+
+export async function resolvePlayer(videoId, session = {}, verifyCandidate = null) {
   const errors = [];
+  const clients = [
+    { key: 'ANDROID_VR', preferHls: false },
+    { key: 'IOS', preferHls: false },
+    { key: 'ANDROID', preferHls: false },
+    { key: 'WEB_SAFARI', preferHls: true },
+    { key: 'MWEB', preferHls: true }
+  ];
 
-  // Android VR currently tends to return usable adaptive audio without a PO token.
-  for (const client of ['ANDROID_VR', 'IOS', 'ANDROID']) {
+  // A player response can contain a signed URL that is already unusable from the
+  // current edge location. When supplied, verifyCandidate must actually open the
+  // stream; a failed candidate then falls through to the next InnerTube client.
+  for (const client of clients) {
     try {
-      const result = await tryPlayer(videoId, client, session);
-      if (result.format) {
-        return {
-          streamUrl: result.format.url,
-          streamType: 'audio',
-          mimeType: result.format.mimeType || '',
-          bitrate: Number(result.format.averageBitrate || result.format.bitrate || 0) || null,
-          contentLength: result.format.contentLength ? Number(result.format.contentLength) : null,
-          ...result.meta
-        };
+      const result = await tryPlayer(videoId, client.key, session);
+      const candidates = playerCandidates(result, client.preferHls);
+      if (!candidates.length) {
+        errors.push(`${client.key}: ${result.data?.playabilityStatus?.status || 'no playable stream'}`);
+        continue;
       }
-      if (result.hls) return { streamUrl: result.hls, streamType: 'hls', mimeType: 'application/vnd.apple.mpegurl', bitrate: null, contentLength: null, ...result.meta };
-      errors.push(`${client}: ${result.data?.playabilityStatus?.status || 'no playable stream'}`);
-    } catch (err) {
-      errors.push(`${client}: ${err.message}`);
-    }
-  }
 
-  // Safari/MWEB are useful fallbacks on iPhone/iPad because they can return HLS.
-  for (const client of ['WEB_SAFARI', 'MWEB']) {
-    try {
-      const result = await tryPlayer(videoId, client, session);
-      if (result.hls) return { streamUrl: result.hls, streamType: 'hls', mimeType: 'application/vnd.apple.mpegurl', bitrate: null, contentLength: null, ...result.meta };
-      if (result.format) return { streamUrl: result.format.url, streamType: 'audio', mimeType: result.format.mimeType || '', bitrate: Number(result.format.averageBitrate || result.format.bitrate || 0) || null, contentLength: result.format.contentLength ? Number(result.format.contentLength) : null, ...result.meta };
-      errors.push(`${client}: ${result.data?.playabilityStatus?.status || 'no playable stream'}`);
+      for (const candidate of candidates) {
+        try {
+          if (verifyCandidate) await verifyCandidate(candidate);
+          return candidate;
+        } catch (err) {
+          errors.push(`${client.key}/${candidate.streamType}: ${err.message}`);
+        }
+      }
     } catch (err) {
-      errors.push(`${client}: ${err.message}`);
+      errors.push(`${client.key}: ${err.message}`);
     }
   }
 
@@ -369,24 +407,85 @@ export async function resolvePlayer(videoId, session) {
   throw err;
 }
 
-const json = (statusCode, body) => ({
-  statusCode,
+const normalizedSearchText = (value) => String(value || '')
+  .normalize('NFKD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .toLowerCase()
+  .replace(/[^a-z0-9]+/g, ' ')
+  .trim();
+
+export function rankPublicFallbacks(tracks, title, artist, rejectedId = '') {
+  const wantedTitle = normalizedSearchText(title);
+  const wantedArtist = normalizedSearchText(artist);
+  const unwantedVersions = /\b(live|karaoke|cover|remix|mashup|instrumental|slowed|sped up|reaction)\b/;
+
+  return tracks
+    .filter(track => track?.videoId && track.videoId !== rejectedId)
+    .map((track, index) => {
+      const trackTitle = normalizedSearchText(track.title);
+      const trackArtist = normalizedSearchText(track.artist);
+      let score = -index / 100;
+      if (trackTitle === wantedTitle) score += 120;
+      else if (trackTitle.includes(wantedTitle) || wantedTitle.includes(trackTitle)) score += 55;
+      if (wantedArtist && trackArtist === wantedArtist) score += 60;
+      else if (wantedArtist && (trackArtist.includes(wantedArtist) || wantedArtist.includes(trackArtist))) score += 35;
+      if (/\bofficial\b/.test(trackTitle)) score += 8;
+      if (!unwantedVersions.test(wantedTitle) && unwantedVersions.test(trackTitle)) score -= 35;
+      return { track, score };
+    })
+    .sort((a, b) => b.score - a.score)
+    .map(item => item.track);
+}
+
+export async function resolvePublicFallback({ title, artist, rejectedId }, session = {}, verifyCandidate = null) {
+  const query = `${String(title || '').trim()} ${String(artist || '').trim()}`.trim().slice(0, 240);
+  if (!query) throw new Error('Missing metadata for public playback fallback.');
+
+  const data = await innerTube('search', { query }, 'WEB_SAFARI', session);
+  const visitorData = responseVisitorData(data) || session.visitorData || null;
+  const tracks = rankPublicFallbacks(extractPublicVideos(data, 30), title, artist, rejectedId).slice(0, 6);
+  const errors = [];
+
+  for (const track of tracks) {
+    try {
+      const resolved = await resolvePlayer(track.videoId, { ...session, visitorData }, verifyCandidate);
+      return { ...resolved, fallbackVideoId: track.videoId, fallbackTitle: track.title };
+    } catch (err) {
+      const details = Array.isArray(err.details) && err.details.length ? err.details.join(' | ') : err.message;
+      errors.push(`${track.videoId}: ${details}`);
+    }
+  }
+
+  const err = new Error('No public playback fallback was available for this track.');
+  err.status = 502;
+  err.details = errors;
+  throw err;
+}
+
+const json = (status, body) => new Response(JSON.stringify(body), {
+  status,
   headers: {
     'Content-Type': 'application/json; charset=utf-8',
     'Cache-Control': 'no-store',
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type',
     'Access-Control-Allow-Methods': 'POST,OPTIONS'
-  },
-  body: JSON.stringify(body)
+  }
 });
 
-export const handler = async (event) => {
-  if (event.httpMethod === 'OPTIONS') return json(204, {});
-  if (event.httpMethod !== 'POST') return json(405, { error: 'POST only' });
+export default async (request) => {
+  if (request.method === 'OPTIONS') return new Response(null, {
+    status: 204,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Headers': 'Content-Type',
+      'Access-Control-Allow-Methods': 'POST,OPTIONS'
+    }
+  });
+  if (request.method !== 'POST') return json(405, { error: 'POST only' });
 
   try {
-    const body = JSON.parse(event.body || '{}');
+    const body = await request.json();
     const action = body.action;
     const session = {
       hl: body.locale?.hl,

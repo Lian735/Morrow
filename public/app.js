@@ -153,6 +153,8 @@ async function api(action, payload = {}) {
 function audioUrl(t) {
   const {hl, gl} = locale();
   const params = new URLSearchParams({ v:t.videoId || t.id, hl, gl });
+  if (t.title) params.set('title', String(t.title).slice(0, 160));
+  if (t.artist) params.set('artist', String(t.artist).slice(0, 120));
   if (state.visitorData) params.set('visitorData', state.visitorData);
   return `/api/audio?${params}`;
 }
