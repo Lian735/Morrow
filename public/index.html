@@ -81,6 +81,7 @@
           <button id="muteBtn" class="icon-button" aria-label="Mute"><i class="ph ph-speaker-high" aria-hidden="true"></i></button>
           <input id="volume" type="range" min="0" max="1" step="0.01" value="0.78" aria-label="Volume" />
         </div>
+        <button id="pipBtn" class="icon-button" aria-label="Open Picture in Picture setup"><i class="ph ph-picture-in-picture" aria-hidden="true"></i></button>
         <button id="playerQueueBtn" class="icon-button" aria-label="Open queue"><i class="ph ph-queue" aria-hidden="true"></i></button>
         <button id="fullscreenBtn" class="icon-button" aria-label="Open full screen player"><i class="ph ph-arrows-out" aria-hidden="true"></i></button>
       </div>
@@ -151,7 +152,17 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <audio id="audio" preload="metadata" playsinline></audio>
-  <div id="youtubePlayerHost" aria-hidden="true"></div>
+  <div id="youtubePlayerShell" class="youtube-player-shell" aria-hidden="true">
+    <button class="youtube-player-scrim" data-close-youtube aria-label="Close video"></button>
+    <section class="youtube-player-panel" aria-label="Picture in Picture setup">
+      <header>
+        <div><span class="overline">TEMPORARY BACKGROUND MODE</span><strong>Picture in Picture</strong></div>
+        <button class="icon-button" data-close-youtube aria-label="Close video"><i class="ph ph-x" aria-hidden="true"></i></button>
+      </header>
+      <div id="youtubePlayerHost"></div>
+      <p>Start Picture in Picture from the video controls, then switch apps. Availability depends on Safari and YouTube.</p>
+    </section>
+  </div>
 
   <script type="module" src="app.js"></script>
 </body>

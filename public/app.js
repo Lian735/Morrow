@@ -66,6 +66,7 @@ const nowPlaying = $('#nowPlaying');
 const settingsModal = $('#settingsModal');
 const toast = $('#toast');
 const visualizerCanvas = $('#visualizer');
+const youtubePlayerShell = $('#youtubePlayerShell');
 
 audio.volume = Number(localStorage.getItem('morrow.volume') || restoredPlayback?.volume || 0.78);
 $('#volume').value = String(audio.volume);
@@ -217,7 +218,7 @@ function youtubeReady() {
       youtubePlayer = new YT.Player('youtubePlayerHost', {
         width: 200,
         height: 200,
-        playerVars: { autoplay:0, controls:0, disablekb:1, playsinline:1, origin:location.origin },
+        playerVars: { autoplay:0, controls:1, disablekb:1, playsinline:1, fs:1, origin:location.origin },
         events: {
           onReady: event => {
             event.target.setVolume(audio.volume * 100);
@@ -836,6 +837,24 @@ function closeFullPlayer() {
   nowPlaying.classList.remove('is-open'); nowPlaying.setAttribute('aria-hidden','true'); document.body.style.overflow=''; stopVisualizer();
 }
 
+function openPictureInPictureSetup() {
+  if (!currentTrack()) return showToast('Choose a song before opening Picture in Picture.');
+  closeDrawer();
+  closeContextMenu();
+  closeFullPlayer();
+  youtubePlayerShell.classList.add('is-open');
+  youtubePlayerShell.setAttribute('aria-hidden','false');
+  const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  if (standalone && /iPad|iPhone|iPod/.test(navigator.userAgent)) {
+    showToast('PiP may require opening Morrow directly in Safari.');
+  }
+}
+
+function closePictureInPictureSetup() {
+  youtubePlayerShell.classList.remove('is-open');
+  youtubePlayerShell.setAttribute('aria-hidden','true');
+}
+
 function setupVisualizer() {
   analyser = null;
 }
@@ -904,7 +923,7 @@ search.addEventListener('input', () => {
 
 document.addEventListener('keydown', event => {
   if ((event.metaKey||event.ctrlKey) && event.key.toLowerCase()==='k') { event.preventDefault(); state.view='search'; render(); search.focus(); }
-  if (event.key==='Escape') { closeContextMenu(); closeDrawer(); closeSettings(); closeFullPlayer(); }
+  if (event.key==='Escape') { closeContextMenu(); closeDrawer(); closeSettings(); closeFullPlayer(); closePictureInPictureSetup(); }
   if (event.code==='Space' && !['INPUT','TEXTAREA','BUTTON'].includes(document.activeElement.tagName)) { event.preventDefault(); togglePlay(); }
 });
 
@@ -924,6 +943,7 @@ $('#seek').addEventListener('input',event=>seekFrom(event.currentTarget));
 $('#fullSeek').addEventListener('input',event=>seekFrom(event.currentTarget));
 $('#volume').addEventListener('input',event=>{ audio.volume=Number(event.target.value); youtubePlayer?.setVolume?.(audio.volume*100); if (audio.volume>0) lastAudibleVolume=audio.volume; setRangeProgress(event.target,audio.volume); persist(); });
 $('#muteBtn').addEventListener('click',()=>{ if (audio.volume>0) { lastAudibleVolume=audio.volume; audio.volume=0; } else audio.volume=lastAudibleVolume; youtubePlayer?.setVolume?.(audio.volume*100); $('#volume').value=String(audio.volume); setRangeProgress($('#volume'),audio.volume); $('#muteBtn i').className=`ph ${audio.volume?'ph-speaker-high':'ph-speaker-slash'}`; });
+$('#pipBtn').addEventListener('click',openPictureInPictureSetup);
 $('#playerQueueBtn').addEventListener('click',openDrawer);
 $('#nowQueueBtn').addEventListener('click',()=>{ closeFullPlayer(); openDrawer(); });
 $('#fullscreenBtn').addEventListener('click',openFullPlayer);
@@ -933,6 +953,7 @@ $('#settingsBtn').addEventListener('click',openSettings);
 $('#profileButton').addEventListener('click',openSettings);
 $$('[data-close-drawer]').forEach(button=>button.addEventListener('click',closeDrawer));
 $$('[data-close-modal]').forEach(button=>button.addEventListener('click',closeSettings));
+$$('[data-close-youtube]').forEach(button=>button.addEventListener('click',closePictureInPictureSetup));
 [$('#drawerAutoplay'),$('#settingsAutoplay')].forEach(button=>button.addEventListener('click',()=>setAutoplay(!state.autoplay)));
 
 $('#queueList').addEventListener('click', event => {

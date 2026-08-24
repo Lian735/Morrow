@@ -54,3 +54,11 @@ test('YouTube playback rate is normalized on startup, track load and resume', ()
   assert.match(app, /YT\.PlayerState\.PLAYING\) \{ normalizePlaybackRate\(event\.target\)/);
   assert.match(app, /normalizePlaybackRate\(youtubePlayer\);\s*youtubePlayer\.playVideo\(\)/);
 });
+
+test('Picture in Picture workaround reveals the real mounted player only on demand', () => {
+  assert.match(html, /id="pipBtn"/);
+  assert.match(html, /id="youtubePlayerShell" class="youtube-player-shell" aria-hidden="true"/);
+  assert.match(app, /function openPictureInPictureSetup\(/);
+  assert.match(app, /playerVars: \{ autoplay:0, controls:1/);
+  assert.match(css, /\.youtube-player-shell\.is-open #youtubePlayerHost/);
+});
