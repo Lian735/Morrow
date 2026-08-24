@@ -4,8 +4,8 @@
   "description": "A refined music player with autoplay and background playback.",
   "start_url": "./",
   "display": "standalone",
-  "background_color": "#09090c",
-  "theme_color": "#09090c",
+  "background_color": "#0b0b0c",
+  "theme_color": "#0b0b0c",
   "orientation": "any",
   "categories": ["music", "entertainment"],
   "icons": [
