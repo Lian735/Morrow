@@ -47,3 +47,10 @@ test('play glyph is optically centered and Safari background limits are explicit
   assert.match(app, /status\.textContent = isiOS \? 'Foreground only'/);
   assert.match(app, /Safari suspends embedded YouTube playback/);
 });
+
+test('YouTube playback rate is normalized on startup, track load and resume', () => {
+  assert.match(app, /function normalizePlaybackRate\(/);
+  assert.match(app, /player\.setPlaybackRate\(1\)/);
+  assert.match(app, /YT\.PlayerState\.PLAYING\) \{ normalizePlaybackRate\(event\.target\)/);
+  assert.match(app, /normalizePlaybackRate\(youtubePlayer\);\s*youtubePlayer\.playVideo\(\)/);
+});
