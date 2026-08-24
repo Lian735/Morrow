@@ -1,0 +1,16 @@
+[build]
+  publish = "public"
+  functions = "netlify/functions"
+
+[functions]
+  node_bundler = "esbuild"
+
+[[redirects]]
+  from = "/api/innertube"
+  to = "/.netlify/functions/innertube"
+  status = 200
+  force = true
+
+[[edge_functions]]
+  function = "audio"
+  path = "/api/audio"
