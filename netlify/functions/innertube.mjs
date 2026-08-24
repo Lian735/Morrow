@@ -161,6 +161,21 @@ function parsePanel(renderer) {
   };
 }
 
+function parseVideo(renderer) {
+  const videoId = renderer.videoId;
+  if (!videoId) return null;
+  return {
+    id: videoId,
+    videoId,
+    title: text(renderer.title) || 'Unknown title',
+    artist: text(renderer.ownerText) || text(renderer.longBylineText) || 'YouTube',
+    album: '',
+    duration: parseDuration(renderer.lengthText),
+    image: bestThumb(renderer),
+    source: 'youtube'
+  };
+}
+
 function uniqueTracks(items, limit = 50) {
   const seen = new Set();
   const out = [];
@@ -181,6 +196,10 @@ function extractTracks(data, limit = 40) {
 
 function extractPanelTracks(data, limit = 50) {
   return uniqueTracks(walk(data, 'playlistPanelVideoRenderer').map(parsePanel).filter(Boolean), limit);
+}
+
+function extractPublicVideos(data, limit = 30) {
+  return uniqueTracks(walk(data, 'videoRenderer').map(parseVideo).filter(Boolean), limit);
 }
 
 function findAutomix(data) {
@@ -422,9 +441,9 @@ export async function resolvePublicFallback({ title, artist, rejectedId }, sessi
   const query = `${String(title || '').trim()} ${String(artist || '').trim()}`.trim().slice(0, 240);
   if (!query) throw new Error('Missing metadata for public playback fallback.');
 
-  const data = await innerTube('search', { query }, 'YTMUSIC', session);
+  const data = await innerTube('search', { query }, 'WEB_SAFARI', session);
   const visitorData = responseVisitorData(data) || session.visitorData || null;
-  const tracks = rankPublicFallbacks(extractTracks(data, 30), title, artist, rejectedId).slice(0, 6);
+  const tracks = rankPublicFallbacks(extractPublicVideos(data, 30), title, artist, rejectedId).slice(0, 6);
   const errors = [];
 
   for (const track of tracks) {
