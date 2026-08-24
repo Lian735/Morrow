@@ -450,13 +450,25 @@ export function rankPublicFallbacks(tracks, title, artist, rejectedId = '') {
     .map(item => item.track);
 }
 
-export async function resolvePublicFallback({ title, artist, rejectedId }, session = {}, verifyCandidate = null) {
+async function publicFallbackTracks({ title, artist, rejectedId }, session = {}) {
   const query = `${String(title || '').trim()} ${String(artist || '').trim()}`.trim().slice(0, 240);
   if (!query) throw new Error('Missing metadata for public playback fallback.');
 
   const data = await innerTube('search', { query }, 'WEB_SAFARI', session);
   const visitorData = responseVisitorData(data) || session.visitorData || null;
   const tracks = rankPublicFallbacks(extractPublicVideos(data, 30), title, artist, rejectedId).slice(0, 6);
+  return { tracks, visitorData };
+}
+
+export async function findPublicVideo({ title, artist, rejectedId }, session = {}) {
+  const { tracks, visitorData } = await publicFallbackTracks({ title, artist, rejectedId }, session);
+  const track = tracks[0];
+  if (!track) throw new Error('No public YouTube video was found for this track.');
+  return { ...track, visitorData };
+}
+
+export async function resolvePublicFallback({ title, artist, rejectedId }, session = {}, verifyCandidate = null) {
+  const { tracks, visitorData } = await publicFallbackTracks({ title, artist, rejectedId }, session);
   const errors = [];
 
   for (const track of tracks) {
@@ -521,6 +533,15 @@ export default async (request) => {
       const videoId = String(body.videoId || '').trim();
       if (!videoId) return json(400, { error: 'Missing videoId' });
       return json(200, await resolvePlayer(videoId, session));
+    }
+    if (action === 'public') {
+      const title = String(body.title || '').trim();
+      if (!title) return json(400, { error: 'Missing title' });
+      return json(200, await findPublicVideo({
+        title,
+        artist: String(body.artist || '').trim(),
+        rejectedId: String(body.rejectedId || '').trim()
+      }, session));
     }
     return json(400, { error: 'Unknown action' });
   } catch (err) {

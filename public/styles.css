@@ -279,3 +279,12 @@ input[type=range]:hover::-webkit-slider-thumb { opacity:1; }
 }
 
 .queue-loading { color:var(--muted); font-size:11px; text-align:center; padding:14px 8px 4px; }
+#youtubePlayerHost {
+  position: fixed;
+  left: -10000px;
+  top: 0;
+  width: 200px;
+  height: 200px;
+  overflow: hidden;
+  pointer-events: none;
+}

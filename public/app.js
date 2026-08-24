@@ -63,6 +63,76 @@ let toastTimer;
 let searchTimer;
 let searchSerial = 0;
 let streamRetryId = null;
+let youtubePlayer = null;
+let youtubeReadyPromise = null;
+let youtubeFallbackFor = null;
+
+function setPlaying(playing) {
+  state.isPlaying = playing;
+  syncPlaybackUI();
+  renderQueue();
+  if ('mediaSession' in navigator) navigator.mediaSession.playbackState = playing ? 'playing' : 'paused';
+}
+
+async function recoverYouTubePlayback() {
+  const t = currentTrack();
+  if (!t || youtubeFallbackFor === t.id) {
+    setPlaying(false);
+    return showToast('This track is unavailable on YouTube.');
+  }
+  youtubeFallbackFor = t.id;
+  try {
+    const data = await api('public', {
+      title: t.title,
+      artist: t.artist,
+      rejectedId: t.playbackVideoId || t.videoId || t.id
+    });
+    t.playbackVideoId = data.videoId;
+    youtubePlayer.loadVideoById(data.videoId);
+  } catch (err) {
+    console.warn('YouTube player fallback failed:', err);
+    setPlaying(false);
+    showToast('This track is unavailable on YouTube.');
+  }
+}
+
+function youtubeReady() {
+  if (youtubeReadyPromise) return youtubeReadyPromise;
+  youtubeReadyPromise = new Promise((resolve, reject) => {
+    const create = () => {
+      if (youtubePlayer) return resolve(youtubePlayer);
+      youtubePlayer = new YT.Player('youtubePlayerHost', {
+        width: 200,
+        height: 200,
+        playerVars: { autoplay: 0, controls: 0, disablekb: 1, playsinline: 1, origin: location.origin },
+        events: {
+          onReady: event => {
+            event.target.setVolume(audio.volume * 100);
+            resolve(event.target);
+          },
+          onStateChange: event => {
+            if (event.data === YT.PlayerState.PLAYING) setPlaying(true);
+            else if (event.data === YT.PlayerState.PAUSED) setPlaying(false);
+            else if (event.data === YT.PlayerState.ENDED) { setPlaying(false); nextTrack(false); }
+          },
+          onError: recoverYouTubePlayback
+        }
+      });
+    };
+    if (window.YT?.Player) return create();
+    const previous = window.onYouTubeIframeAPIReady;
+    window.onYouTubeIframeAPIReady = () => { previous?.(); create(); };
+    const script = document.createElement('script');
+    script.src = 'https://www.youtube.com/iframe_api';
+    script.onerror = () => reject(new Error('YouTube player API failed to load'));
+    document.head.appendChild(script);
+  });
+  return youtubeReadyPromise;
+}
+
+function playbackTime() { try { return Number(youtubePlayer?.getCurrentTime?.() || 0); } catch { return 0; } }
+function playbackDuration() { try { return Number(youtubePlayer?.getDuration?.() || currentTrack()?.duration || 0); } catch { return Number(currentTrack()?.duration || 0); } }
+function seekPlayback(seconds) { try { youtubePlayer?.seekTo?.(Math.max(0, seconds), true); } catch {} }
 
 function showToast(msg) {
   clearTimeout(toastTimer);
@@ -342,11 +412,11 @@ async function playTrack(id, {keepQueue=false} = {}) {
     }
   } else state.queueIndex = state.queue.indexOf(id);
 
-  if (state.currentId !== id || !audio.src) {
+  const changedTrack = state.currentId !== id;
+  if (changedTrack) {
     state.currentId = id;
     streamRetryId = null;
-    audio.src = audioUrl(t);
-    audio.load();
+    youtubeFallbackFor = null;
     state.playedCount[id] = (state.playedCount[id] || 0) + 1;
     state.history.unshift(id);
     state.history = state.history.slice(0,20);
@@ -355,13 +425,14 @@ async function playTrack(id, {keepQueue=false} = {}) {
     syncPlayerMeta();
   }
 
-  // This call happens immediately after a tap. That matters on iPhone/iPad.
   try {
-    await audio.play();
-    state.isPlaying = true;
+    const player = await youtubeReady();
+    if (changedTrack || player.getVideoData?.().video_id !== (t.playbackVideoId || t.videoId || t.id)) {
+      player.loadVideoById(t.playbackVideoId || t.videoId || t.id);
+    } else player.playVideo();
   } catch (err) {
-    state.isPlaying = false;
-    if (t.source === 'youtube') showToast('Stream wird geladen…');
+    setPlaying(false);
+    showToast('YouTube player could not start.');
   }
   syncPlaybackUI();
   renderQueue();
@@ -371,8 +442,9 @@ async function playTrack(id, {keepQueue=false} = {}) {
 
 function togglePlay() {
   if (!state.currentId) return showToast('Search for a song to start playback.');
-  if (audio.paused) audio.play().then(()=>{state.isPlaying=true;syncPlaybackUI();}).catch(()=>showToast('Could not start playback.'));
-  else { audio.pause(); state.isPlaying=false; syncPlaybackUI(); }
+  if (!youtubePlayer) return playTrack(state.currentId, {keepQueue:true});
+  if (state.isPlaying) youtubePlayer.pauseVideo();
+  else youtubePlayer.playVideo();
 }
 
 async function nextTrack(manual = true) {
@@ -403,10 +475,10 @@ async function nextTrack(manual = true) {
 }
 
 function prevTrack() {
-  if (audio.currentTime > 4) { audio.currentTime = 0; return; }
+  if (playbackTime() > 4) { seekPlayback(0); return; }
   const prevId = state.queue[state.queueIndex - 1];
   if (prevId) playTrack(prevId,{keepQueue:true});
-  else audio.currentTime = 0;
+  else seekPlayback(0);
 }
 
 function toggleLike(id = state.currentId) {
@@ -446,7 +518,7 @@ function syncPlayerMeta() {
   $('#sheetLikeBtn .icon').innerHTML = liked ? icons.heartFill : icons.heart;
 }
 function syncPlaybackUI() {
-  const playing = !audio.paused && !!state.currentId;
+  const playing = state.isPlaying && !!state.currentId;
   state.isPlaying = playing;
   [$('#playBtn'),$('#sheetPlayBtn')].forEach(btn => {
     btn.querySelector('.icon').innerHTML = playing ? icons.pause : icons.play;
@@ -454,16 +526,17 @@ function syncPlaybackUI() {
   });
 }
 function syncTime() {
-  const d = audio.duration || currentTrack()?.duration || 0;
-  const p = d ? audio.currentTime / d : 0;
+  const d = playbackDuration();
+  const current = playbackTime();
+  const p = d ? current / d : 0;
   const val = Math.round(p * 1000);
   [$('#seek'),$('#sheetSeek')].forEach(el => { el.value = val; el.style.setProperty('--pct', `${p*100}%`); });
-  $('#elapsed').textContent = fmt(audio.currentTime);
+  $('#elapsed').textContent = fmt(current);
   $('#duration').textContent = fmt(d);
-  $('#sheetElapsed').textContent = fmt(audio.currentTime);
+  $('#sheetElapsed').textContent = fmt(current);
   $('#sheetDuration').textContent = fmt(d);
   if ('mediaSession' in navigator && navigator.mediaSession.setPositionState && Number.isFinite(d) && d > 0) {
-    try { navigator.mediaSession.setPositionState({duration:d, playbackRate:audio.playbackRate, position:Math.min(audio.currentTime,d)}); } catch {}
+    try { navigator.mediaSession.setPositionState({duration:d, playbackRate:1, position:Math.min(current,d)}); } catch {}
   }
 }
 
@@ -489,13 +562,13 @@ function updateMediaSession(t) {
   if (t.image) metadata.artwork = [{ src:t.image, sizes:'512x512' }];
   try { navigator.mediaSession.metadata = new MediaMetadata(metadata); } catch {}
   const handlers = {
-    play: () => audio.play(),
-    pause: () => audio.pause(),
+    play: () => youtubePlayer?.playVideo?.(),
+    pause: () => youtubePlayer?.pauseVideo?.(),
     previoustrack: prevTrack,
     nexttrack: () => nextTrack(true),
-    seekbackward: d => audio.currentTime = Math.max(0,audio.currentTime-(d.seekOffset||10)),
-    seekforward: d => audio.currentTime = Math.min(audio.duration||Infinity,audio.currentTime+(d.seekOffset||10)),
-    seekto: d => { if (typeof d.seekTime === 'number') audio.currentTime = d.seekTime; },
+    seekbackward: d => seekPlayback(playbackTime() - (d.seekOffset || 10)),
+    seekforward: d => seekPlayback(Math.min(playbackDuration() || Infinity, playbackTime() + (d.seekOffset || 10))),
+    seekto: d => { if (typeof d.seekTime === 'number') seekPlayback(d.seekTime); },
   };
   Object.entries(handlers).forEach(([action,fn]) => { try { navigator.mediaSession.setActionHandler(action,fn); } catch {} });
 }
@@ -546,7 +619,7 @@ function openSheet() { if (innerWidth>760) return; nowPlayingSheet.classList.add
 function closeSheet() { nowPlayingSheet.classList.remove('is-open'); nowPlayingSheet.setAttribute('aria-hidden','true'); }
 function openSettings() { settingsModal.classList.add('is-open'); settingsModal.setAttribute('aria-hidden','false'); setSourceStatus(state.sourceStatus); }
 function closeSettings() { settingsModal.classList.remove('is-open'); settingsModal.setAttribute('aria-hidden','true'); }
-function seekFrom(el) { if (audio.duration) audio.currentTime = (Number(el.value)/1000)*audio.duration; }
+function seekFrom(el) { const d = playbackDuration(); if (d) seekPlayback((Number(el.value) / 1000) * d); }
 
 view.addEventListener('click', e => {
   const play = e.target.closest('[data-play]'); if (play) return playTrack(play.dataset.play);
@@ -599,7 +672,7 @@ $('#likeCurrentBtn').addEventListener('click', ()=>toggleLike());
 $('#sheetLikeBtn').addEventListener('click', ()=>toggleLike());
 $('#seek').addEventListener('input', e=>seekFrom(e.currentTarget));
 $('#sheetSeek').addEventListener('input', e=>seekFrom(e.currentTarget));
-$('#volume').addEventListener('input', e=>{audio.volume=Number(e.target.value); localStorage.setItem('morrow.volume',audio.volume); e.target.style.setProperty('--pct',`${audio.volume*100}%`);});
+$('#volume').addEventListener('input', e=>{audio.volume=Number(e.target.value); youtubePlayer?.setVolume?.(audio.volume*100); localStorage.setItem('morrow.volume',audio.volume); e.target.style.setProperty('--pct',`${audio.volume*100}%`);});
 $('#volume').style.setProperty('--pct',`${audio.volume*100}%`);
 
 [$('#sidebarAutoplay'),$('#drawerAutoplay'),$('#settingsAutoplay')].forEach(btn => btn.addEventListener('click',()=>setAutoplay(!state.autoplay)));
@@ -616,31 +689,8 @@ $('#queueList').addEventListener('click', e => {
   if (id === state.currentId) togglePlay(); else playTrack(id,{keepQueue:true});
 });
 
-audio.addEventListener('play',()=>{state.isPlaying=true;syncPlaybackUI();renderQueue(); if('mediaSession'in navigator) navigator.mediaSession.playbackState='playing';});
-audio.addEventListener('pause',()=>{state.isPlaying=false;syncPlaybackUI();renderQueue(); if('mediaSession'in navigator) navigator.mediaSession.playbackState='paused';});
-audio.addEventListener('timeupdate',syncTime);
-audio.addEventListener('loadedmetadata',()=>{
-  const t = currentTrack();
-  if (t && Number.isFinite(audio.duration) && audio.duration > 0 && !t.duration) t.duration = audio.duration;
-  syncTime();
-});
-audio.addEventListener('ended',()=>nextTrack(false));
-audio.addEventListener('error',()=>{
-  const t = currentTrack();
-  if (t?.source === 'youtube' && streamRetryId !== t.id) {
-    streamRetryId = t.id;
-    const pos = Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
-    setTimeout(() => {
-      audio.src = `${audioUrl(t)}&retry=${Date.now()}`;
-      audio.load();
-      audio.addEventListener('loadedmetadata', () => {
-        if (pos > 0 && audio.duration > pos) audio.currentTime = pos;
-        audio.play().catch(() => {});
-      }, {once:true});
-      audio.play().catch(() => {});
-    }, 250);
-  } else showToast('This track could not be loaded.');
-});
+setInterval(syncTime, 500);
+youtubeReady().catch(err => console.warn('YouTube player unavailable:', err));
 
 setAutoplay(state.autoplay);
 setSourceStatus('connecting');
