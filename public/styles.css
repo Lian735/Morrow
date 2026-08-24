@@ -281,10 +281,26 @@ input[type=range]:hover::-webkit-slider-thumb { opacity:1; }
 .queue-loading { color:var(--muted); font-size:11px; text-align:center; padding:14px 8px 4px; }
 #youtubePlayerHost {
   position: fixed;
-  left: -10000px;
-  top: 0;
-  width: 200px;
-  height: 200px;
+  right: 18px;
+  bottom: 104px;
+  width: 240px;
+  height: 135px;
+  z-index: 48;
   overflow: hidden;
-  pointer-events: none;
+  border-radius: 12px;
+  background: #000;
+  box-shadow: 0 12px 36px rgba(0,0,0,.45);
+}
+#youtubePlayerHost iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+@media (max-width: 760px) {
+  #youtubePlayerHost {
+    right: 12px;
+    bottom: calc(144px + env(safe-area-inset-bottom));
+    width: 200px;
+    height: 113px;
+  }
 }
