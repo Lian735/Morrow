@@ -1,6 +1,9 @@
-const CACHE = 'morrow-v7';
+const CACHE = 'morrow-v8';
 const APP = [
-  './', './index.html', './styles.css', './app.js', './manifest.webmanifest'
+  './', './index.html', './styles.css', './app.js', './manifest.webmanifest',
+  './assets/morrow-logo.png',
+  './vendor/phosphor/regular/style.css', './vendor/phosphor/regular/Phosphor.woff2',
+  './vendor/phosphor/fill/style.css', './vendor/phosphor/fill/Phosphor-Fill.woff2'
 ];
 
 self.addEventListener('install', e => e.waitUntil(

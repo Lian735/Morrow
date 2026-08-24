@@ -8,7 +8,9 @@ Morrow is an installable music-player PWA with YouTube Music search, InnerTube r
 - YouTube Music `next`/radio queue for autoplay
 - Background playback + lock-screen/media controls
 - Queue, seek, previous/next, shuffle and likes
-- Local library/history
+- Local library/history, public playlist discovery and following
+- Contextual song actions for queueing, playlists, radio and taste controls
+- Dedicated fullscreen Now Playing view with an audio-reactive visualizer
 - iPhone, iPad and desktop UI
 - Installable PWA + offline app shell
 
@@ -23,7 +25,9 @@ This build is configured for **Netlify**.
 There is no separate server for you to run or maintain. Morrow uses InnerTube exclusively; if the bridge is unavailable, no local audio fallback is shown.
 
 ## iPhone / iPad
-Start the first track with a tap. After that, autoplay can continue automatically and Media Session controls allow background/lock-screen playback. Adding Morrow to the Home Screen gives the most app-like experience.
+Start the first track with a tap. Morrow now uses the native HTML audio pipeline instead of relying on the hidden YouTube iframe, which gives browsers and operating systems the best chance to keep playback alive in the background. Media Session controls expose play/pause, previous/next, seeking and artwork where supported. Adding Morrow to the Home Screen is the most reliable iPhone/iPad setup.
+
+Background playback remains subject to browser and operating-system limits. Low Power Mode, memory pressure, network loss or a browser that does not expose Media Session can still suspend a web app; Morrow reports that capability honestly in Settings instead of claiming universal support.
 
 ## Files
 - `public/app.js` — Morrow UI, player, search, queue and autoplay
