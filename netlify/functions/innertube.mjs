@@ -432,7 +432,8 @@ export async function resolvePublicFallback({ title, artist, rejectedId }, sessi
       const resolved = await resolvePlayer(track.videoId, { ...session, visitorData }, verifyCandidate);
       return { ...resolved, fallbackVideoId: track.videoId, fallbackTitle: track.title };
     } catch (err) {
-      errors.push(`${track.videoId}: ${err.message}`);
+      const details = Array.isArray(err.details) && err.details.length ? err.details.join(' | ') : err.message;
+      errors.push(`${track.videoId}: ${details}`);
     }
   }
 

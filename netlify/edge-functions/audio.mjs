@@ -156,12 +156,15 @@ export default async (request) => {
       const title = (url.searchParams.get('title') || '').trim().slice(0, 160);
       const artist = (url.searchParams.get('artist') || '').trim().slice(0, 120);
       if (!title) throw primaryError;
-      await resolvePublicFallback({ title, artist, rejectedId: videoId }, session, verifyCandidate);
+      const fallback = await resolvePublicFallback({ title, artist, rejectedId: videoId }, session, verifyCandidate);
+      verifiedResponse.headers.set('x-morrow-playback-fallback', fallback.fallbackVideoId);
     }
     return verifiedResponse;
   } catch (error) {
     console.error('Morrow audio error:', error?.message || error);
-    return new Response('Audio stream failed', {
+    const debug = new URL(request.url).searchParams.get('debug') === '1';
+    const details = debug && Array.isArray(error?.details) ? `\n${error.details.join('\n')}` : '';
+    return new Response(debug ? `${error?.message || 'Audio stream failed'}${details}` : 'Audio stream failed', {
       status: 502,
       headers: { ...CORS_HEADERS, 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' }
     });
