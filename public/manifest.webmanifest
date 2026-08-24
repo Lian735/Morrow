@@ -1,0 +1,14 @@
+{
+  "name": "Morrow",
+  "short_name": "Morrow",
+  "description": "A refined music player with autoplay and background playback.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#09090c",
+  "theme_color": "#09090c",
+  "orientation": "any",
+  "categories": ["music", "entertainment"],
+  "icons": [
+    { "src": "assets/morrow-logo.png", "sizes": "1254x1254", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

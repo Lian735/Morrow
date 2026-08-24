@@ -4,33 +4,417 @@
 const API_KEY = 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8';
 
 const CLIENTS = {
-  YTMUSIC: { id:'67', name:'WEB_REMIX', version:'1.20250219.01.00', base:'https://music.youtube.com/youtubei/v1', origin:'https://music.youtube.com', referer:'https://music.youtube.com/', userAgent:'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36' },
-  ANDROID_VR: { id:'28', name:'ANDROID_VR', version:'1.65.10', base:'https://www.youtube.com/youtubei/v1', origin:'https://www.youtube.com', referer:'https://www.youtube.com/', userAgent:'com.google.android.apps.youtube.vr.oculus/1.65.10 (Linux; U; Android 12L; eureka-user Build/SQ3A.220605.009.A1) gzip', localeFields:false, extra:{deviceMake:'Oculus',deviceModel:'Quest 3',androidSdkVersion:32,userAgent:'com.google.android.apps.youtube.vr.oculus/1.65.10 (Linux; U; Android 12L; eureka-user Build/SQ3A.220605.009.A1) gzip',osName:'Android',osVersion:'12L'} },
-  IOS: { id:'5', name:'iOS', version:'20.11.6', base:'https://youtubei.googleapis.com/youtubei/v1', origin:'https://www.youtube.com', referer:'https://www.youtube.com/', userAgent:'com.google.ios.youtube/20.11.6 (iPhone10,4; U; CPU iOS 16_7_7 like Mac OS X)', extra:{deviceModel:'iPhone10,4',osName:'iOS',osVersion:'16.7.7.20H330',clientScreen:'WATCH'} },
-  ANDROID: { id:'3', name:'ANDROID', version:'21.03.36', base:'https://youtubei.googleapis.com/youtubei/v1', origin:'https://www.youtube.com', referer:'https://www.youtube.com/', userAgent:'com.google.android.youtube/21.03.36 (Linux; U; Android 16; en_US; SM-S908E Build/TP1A.220624.014) gzip', extra:{androidSdkVersion:36,osName:'Android',osVersion:'16'} },
-  WEB_SAFARI: { id:'1', name:'WEB', version:'2.20260114.08.00', base:'https://www.youtube.com/youtubei/v1', origin:'https://www.youtube.com', referer:'https://www.youtube.com/', userAgent:'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.5 Safari/605.1.15,gzip(gfe)' },
-  MWEB: { id:'2', name:'MWEB', version:'2.20260205.04.01', base:'https://www.youtube.com/youtubei/v1', origin:'https://m.youtube.com', referer:'https://m.youtube.com/', userAgent:'Mozilla/5.0 (iPad; CPU OS 16_7_10 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1,gzip(gfe)' }
+  YTMUSIC: {
+    id: '67', name: 'WEB_REMIX', version: '1.20250219.01.00',
+    base: 'https://music.youtube.com/youtubei/v1',
+    origin: 'https://music.youtube.com', referer: 'https://music.youtube.com/',
+    userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+  },
+  ANDROID_VR: {
+    id: '28', name: 'ANDROID_VR', version: '1.65.10',
+    base: 'https://www.youtube.com/youtubei/v1',
+    origin: 'https://www.youtube.com', referer: 'https://www.youtube.com/',
+    userAgent: 'com.google.android.apps.youtube.vr.oculus/1.65.10 (Linux; U; Android 12L; eureka-user Build/SQ3A.220605.009.A1) gzip',
+    localeFields: false,
+    extra: {
+      deviceMake: 'Oculus', deviceModel: 'Quest 3', androidSdkVersion: 32,
+      userAgent: 'com.google.android.apps.youtube.vr.oculus/1.65.10 (Linux; U; Android 12L; eureka-user Build/SQ3A.220605.009.A1) gzip',
+      osName: 'Android', osVersion: '12L'
+    }
+  },
+  IOS: {
+    id: '5', name: 'iOS', version: '20.11.6',
+    base: 'https://youtubei.googleapis.com/youtubei/v1',
+    origin: 'https://www.youtube.com', referer: 'https://www.youtube.com/',
+    userAgent: 'com.google.ios.youtube/20.11.6 (iPhone10,4; U; CPU iOS 16_7_7 like Mac OS X)',
+    extra: { deviceModel: 'iPhone10,4', osName: 'iOS', osVersion: '16.7.7.20H330', clientScreen: 'WATCH' }
+  },
+  ANDROID: {
+    id: '3', name: 'ANDROID', version: '21.03.36',
+    base: 'https://youtubei.googleapis.com/youtubei/v1',
+    origin: 'https://www.youtube.com', referer: 'https://www.youtube.com/',
+    userAgent: 'com.google.android.youtube/21.03.36 (Linux; U; Android 16; en_US; SM-S908E Build/TP1A.220624.014) gzip',
+    extra: { androidSdkVersion: 36, osName: 'Android', osVersion: '16' }
+  },
+  WEB_SAFARI: {
+    id: '1', name: 'WEB', version: '2.20260114.08.00',
+    base: 'https://www.youtube.com/youtubei/v1',
+    origin: 'https://www.youtube.com', referer: 'https://www.youtube.com/',
+    userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.5 Safari/605.1.15,gzip(gfe)'
+  },
+  MWEB: {
+    id: '2', name: 'MWEB', version: '2.20260205.04.01',
+    base: 'https://www.youtube.com/youtubei/v1',
+    origin: 'https://m.youtube.com', referer: 'https://m.youtube.com/',
+    userAgent: 'Mozilla/5.0 (iPad; CPU OS 16_7_10 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1,gzip(gfe)'
+  }
 };
-const SONG_FILTER='EgWKAQIIAWoKEAkQBRAKEAMQBA%3D%3D';
-const text=v=>{if(!v)return'';if(typeof v==='string')return v;if(v.simpleText)return v.simpleText;if(Array.isArray(v.runs))return v.runs.map(r=>r?.text||'').join('');return''};
-function walk(n,k,o=[]){if(!n||typeof n!=='object')return o;if(Object.prototype.hasOwnProperty.call(n,k))o.push(n[k]);if(Array.isArray(n)){for(const i of n)walk(i,k,o)}else for(const v of Object.values(n))walk(v,k,o);return o}
-function findWatchEndpoint(n){if(!n||typeof n!=='object')return null;if(n.watchEndpoint?.videoId)return n.watchEndpoint;for(const v of Array.isArray(n)?n:Object.values(n)){const f=findWatchEndpoint(v);if(f)return f}return null}
-function bestThumb(n){const ts=walk(n,'thumbnails').flatMap(v=>Array.isArray(v)?v:[]).filter(t=>t?.url);if(!ts.length)return null;ts.sort((a,b)=>(+a.width||0)*(+a.height||0)-(+b.width||0)*(+b.height||0));let u=ts.at(-1).url;return u.startsWith('//')?`https:${u}`:u}
-function parseDuration(v){const s=text(v).trim();if(!/^\d+(?::\d{1,2}){1,2}$/.test(s))return null;return s.split(':').reduce((n,p)=>n*60+Number(p),0)}
-function parseResponsive(r){const ep=r.navigationEndpoint?.watchEndpoint||findWatchEndpoint(r.flexColumns)||findWatchEndpoint(r.overlay),videoId=ep?.videoId||r.playlistItemData?.videoId;if(!videoId)return null;const flex=r.flexColumns||[],title=text(flex[0]?.musicResponsiveListItemFlexColumnRenderer?.text)||'Unknown title',runs=flex.flatMap(c=>c?.musicResponsiveListItemFlexColumnRenderer?.text?.runs||[]),artists=runs.filter(x=>x?.navigationEndpoint?.browseEndpoint?.browseId?.startsWith('UC')).map(x=>x.text).filter(Boolean),album=runs.find(x=>x?.navigationEndpoint?.browseEndpoint?.browseId?.startsWith('MPR')),fixed=r.fixedColumns||[],dv=fixed.map(c=>c?.musicResponsiveListItemFixedColumnRenderer?.text).find(v=>parseDuration(v)!=null)||flex.map(c=>c?.musicResponsiveListItemFlexColumnRenderer?.text).find(v=>parseDuration(v)!=null);return{id:videoId,videoId,title,artist:artists.join(', ')||'YouTube Music',album:album?.text||'',duration:parseDuration(dv),image:bestThumb(r),source:'youtube'}}
-function parseTwoRow(r){const ep=r.navigationEndpoint?.watchEndpoint||findWatchEndpoint(r),videoId=ep?.videoId;if(!videoId)return null;const runs=r.subtitle?.runs||[],ar=runs.filter(x=>x?.navigationEndpoint?.browseEndpoint?.browseId?.startsWith('UC')),al=runs.find(x=>x?.navigationEndpoint?.browseEndpoint?.browseId?.startsWith('MPR'));return{id:videoId,videoId,title:text(r.title)||'Unknown title',artist:ar.map(x=>x.text).join(', ')||'YouTube Music',album:al?.text||'',duration:null,image:bestThumb(r),source:'youtube'}}
-function parsePanel(r){const videoId=r.videoId||r.navigationEndpoint?.watchEndpoint?.videoId;if(!videoId)return null;const runs=r.longBylineText?.runs||r.shortBylineText?.runs||[],ar=runs.filter(x=>x?.navigationEndpoint?.browseEndpoint?.browseId?.startsWith('UC')).map(x=>x.text).filter(Boolean),al=runs.find(x=>x?.navigationEndpoint?.browseEndpoint?.browseId?.startsWith('MPR'));return{id:videoId,videoId,title:text(r.title)||'Unknown title',artist:ar.join(', ')||text(r.shortBylineText)||'YouTube Music',album:al?.text||'',duration:parseDuration(r.lengthText),image:bestThumb(r),source:'youtube'}}
-function uniqueTracks(items,limit=50){const s=new Set,o=[];for(const i of items){if(!i?.videoId||s.has(i.videoId))continue;s.add(i.videoId);o.push(i);if(o.length>=limit)break}return o}
-const extractTracks=(d,l=40)=>uniqueTracks([...walk(d,'musicResponsiveListItemRenderer').map(parseResponsive),...walk(d,'musicTwoRowItemRenderer').map(parseTwoRow)].filter(Boolean),l);
-const extractPanelTracks=(d,l=50)=>uniqueTracks(walk(d,'playlistPanelVideoRenderer').map(parsePanel).filter(Boolean),l);
-function findAutomix(d){for(const i of walk(d,'automixPlaylistVideoRenderer')){const e=i?.navigationEndpoint?.watchPlaylistEndpoint||i?.navigationEndpoint?.watchEndpoint;if(e?.playlistId||e?.videoId)return e}return null}
-const responseVisitorData=d=>d?.responseContext?.visitorData||null;
-async function innerTube(endpoint,body={},clientKey='YTMUSIC',session={}){const c=CLIENTS[clientKey]||CLIENTS.YTMUSIC,hl=String(session.hl||'en').slice(0,8),gl=String(session.gl||'US').slice(0,3).toUpperCase(),cb={clientName:c.name,clientVersion:c.version,...(c.localeFields===false?{}:{hl,gl}),...(c.extra||{})};if(session.visitorData)cb.visitorData=String(session.visitorData).slice(0,500);const h={'Content-Type':'application/json','X-Goog-Api-Key':API_KEY,'X-Goog-Api-Format-Version':'1','X-YouTube-Client-Name':c.id,'X-YouTube-Client-Version':c.version,'Origin':c.origin,'Referer':c.referer,'User-Agent':c.userAgent,'Accept-Language':`${hl},en;q=0.8`};if(session.visitorData)h['X-Goog-Visitor-Id']=String(session.visitorData).slice(0,500);const res=await fetch(`${c.base}/${endpoint}?key=${encodeURIComponent(API_KEY)}&prettyPrint=false`,{method:'POST',headers:h,body:JSON.stringify({context:{client:cb},...body})}),raw=await res.text();let data;try{data=JSON.parse(raw)}catch{data={raw:raw.slice(0,500)}}if(!res.ok||data?.error){const e=new Error(data?.error?.message||`InnerTube request failed (${res.status})`);e.status=res.status||502;e.details=data;throw e}return data}
-async function searchTracks(query,s){let d=await innerTube('search',{query,params:SONG_FILTER},'YTMUSIC',s),tracks=extractTracks(d,30),visitorData=responseVisitorData(d);if(!tracks.length){d=await innerTube('search',{query},'YTMUSIC',{...s,visitorData:visitorData||s.visitorData});tracks=extractTracks(d,30);visitorData=responseVisitorData(d)||visitorData}return{tracks,visitorData}}
-async function homeTracks(s){let visitorData=s.visitorData||null;for(const browseId of ['FEmusic_home','FEmusic_explore'])try{const d=await innerTube('browse',{browseId},'YTMUSIC',{...s,visitorData});visitorData=responseVisitorData(d)||visitorData;const tracks=extractTracks(d,36);if(tracks.length>=6)return{tracks,visitorData}}catch{}const f=await searchTracks('Top songs',{...s,visitorData});return{tracks:f.tracks,visitorData:f.visitorData||visitorData}}
-async function autoplayTracks(videoId,s){let d=await innerTube('next',{videoId,enablePersistentPlaylistPanel:true,isAudioOnly:true},'YTMUSIC',s),visitorData=responseVisitorData(d)||s.visitorData||null,tracks=extractPanelTracks(d,50).filter(t=>t.videoId!==videoId);if(tracks.length<4){const a=findAutomix(d);if(a)try{d=await innerTube('next',{videoId:a.videoId||videoId,playlistId:a.playlistId,params:a.params,enablePersistentPlaylistPanel:true,isAudioOnly:true},'YTMUSIC',{...s,visitorData});visitorData=responseVisitorData(d)||visitorData;tracks=uniqueTracks([...tracks,...extractPanelTracks(d,50)].filter(t=>t.videoId!==videoId),50)}catch{}}return{tracks,visitorData}}
-function chooseAudioFormat(d){const f=[...(d?.streamingData?.adaptiveFormats||[]),...(d?.streamingData?.formats||[])].filter(x=>String(x?.mimeType||'').startsWith('audio/')&&x?.url);f.sort((a,b)=>{const am=String(a.mimeType||'').includes('audio/mp4')?1:0,bm=String(b.mimeType||'').includes('audio/mp4')?1:0;return am!==bm?bm-am:Number(b.averageBitrate||b.bitrate||0)-Number(a.averageBitrate||a.bitrate||0)});return f[0]||null}
-async function tryPlayer(videoId,key,s){const d=await innerTube('player',{videoId,racyCheckOk:true,contentCheckOk:true,playbackContext:{contentPlaybackContext:{html5Preference:'HTML5_PREF_WANTS'}}},key,s),format=chooseAudioFormat(d),hls=d?.streamingData?.hlsManifestUrl||null;return{data:d,format,hls,meta:{expiresInSeconds:Number(d?.streamingData?.expiresInSeconds||0)||0,duration:Number(d?.videoDetails?.lengthSeconds||0)||null,title:d?.videoDetails?.title||null,artist:d?.videoDetails?.author||null,image:bestThumb(d?.videoDetails?.thumbnail)||null,visitorData:responseVisitorData(d)||s.visitorData||null,client:key}}}
-export async function resolvePlayer(videoId,s){const errors=[];for(const key of ['ANDROID_VR','IOS','ANDROID','WEB_SAFARI','MWEB'])try{const r=await tryPlayer(videoId,key,s);if(r.format)return{streamUrl:r.format.url,streamType:'audio',mimeType:r.format.mimeType||'',bitrate:Number(r.format.averageBitrate||r.format.bitrate||0)||null,contentLength:r.format.contentLength?Number(r.format.contentLength):null,...r.meta};if(r.hls)return{streamUrl:r.hls,streamType:'hls',mimeType:'application/vnd.apple.mpegurl',bitrate:null,contentLength:null,...r.meta};errors.push(`${key}: ${r.data?.playabilityStatus?.status||'no playable stream'}`)}catch(e){errors.push(`${key}: ${e.message}`)}const e=new Error('No playable stream was returned for this track.');e.status=502;e.details=errors;throw e}
-const json=(statusCode,body)=>({statusCode,headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'Content-Type','Access-Control-Allow-Methods':'POST,OPTIONS'},body:JSON.stringify(body)});
-export const handler=async event=>{if(event.httpMethod==='OPTIONS')return json(204,{});if(event.httpMethod!=='POST')return json(405,{error:'POST only'});try{const body=JSON.parse(event.body||'{}'),action=body.action,session={hl:body.locale?.hl,gl:body.locale?.gl,visitorData:body.visitorData||null};if(action==='search'){const q=String(body.query||'').trim();if(!q)return json(400,{error:'Missing query'});return json(200,await searchTracks(q,session))}if(action==='home')return json(200,await homeTracks(session));if(action==='next'){const id=String(body.videoId||'').trim();if(!id)return json(400,{error:'Missing videoId'});return json(200,await autoplayTracks(id,session))}if(action==='player'){const id=String(body.videoId||'').trim();if(!id)return json(400,{error:'Missing videoId'});return json(200,await resolvePlayer(id,session))}return json(400,{error:'Unknown action'})}catch(e){return json(Number(e.status||500),{error:e.message||'InnerTube request failed',details:e.details||undefined})}};
+
+const SONG_FILTER = 'EgWKAQIIAWoKEAkQBRAKEAMQBA%3D%3D';
+
+const text = (value) => {
+  if (!value) return '';
+  if (typeof value === 'string') return value;
+  if (value.simpleText) return value.simpleText;
+  if (Array.isArray(value.runs)) return value.runs.map(r => r?.text || '').join('');
+  return '';
+};
+
+function walk(node, key, out = []) {
+  if (!node || typeof node !== 'object') return out;
+  if (Object.prototype.hasOwnProperty.call(node, key)) out.push(node[key]);
+  if (Array.isArray(node)) {
+    for (const item of node) walk(item, key, out);
+  } else {
+    for (const value of Object.values(node)) walk(value, key, out);
+  }
+  return out;
+}
+
+function findWatchEndpoint(node) {
+  if (!node || typeof node !== 'object') return null;
+  if (node.watchEndpoint?.videoId) return node.watchEndpoint;
+  if (Array.isArray(node)) {
+    for (const item of node) {
+      const found = findWatchEndpoint(item);
+      if (found) return found;
+    }
+  } else {
+    for (const value of Object.values(node)) {
+      const found = findWatchEndpoint(value);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+function bestThumb(node) {
+  const lists = walk(node, 'thumbnails');
+  const thumbs = lists.flatMap(v => Array.isArray(v) ? v : []).filter(t => t?.url);
+  if (!thumbs.length) return null;
+  thumbs.sort((a, b) => (Number(a.width || 0) * Number(a.height || 0)) - (Number(b.width || 0) * Number(b.height || 0)));
+  let url = thumbs.at(-1).url;
+  if (url.startsWith('//')) url = `https:${url}`;
+  return url;
+}
+
+function parseDuration(value) {
+  const s = text(value).trim();
+  if (!/^\d+(?::\d{1,2}){1,2}$/.test(s)) return null;
+  return s.split(':').reduce((n, part) => n * 60 + Number(part), 0);
+}
+
+function runsFromFlex(renderer) {
+  return (renderer.flexColumns || []).flatMap(col => col?.musicResponsiveListItemFlexColumnRenderer?.text?.runs || []);
+}
+
+function parseResponsive(renderer) {
+  const endpoint = renderer.navigationEndpoint?.watchEndpoint || findWatchEndpoint(renderer.flexColumns) || findWatchEndpoint(renderer.overlay);
+  const videoId = endpoint?.videoId || renderer.playlistItemData?.videoId;
+  if (!videoId) return null;
+
+  const flex = renderer.flexColumns || [];
+  const title = text(flex[0]?.musicResponsiveListItemFlexColumnRenderer?.text) || 'Unknown title';
+  const runs = runsFromFlex(renderer);
+  const artists = runs.filter(r => r?.navigationEndpoint?.browseEndpoint?.browseId?.startsWith('UC')).map(r => r.text).filter(Boolean);
+  const albumRun = runs.find(r => r?.navigationEndpoint?.browseEndpoint?.browseId?.startsWith('MPR'));
+  const fixed = renderer.fixedColumns || [];
+  const durationValue = fixed.map(c => c?.musicResponsiveListItemFixedColumnRenderer?.text).find(v => parseDuration(v) != null)
+    || flex.map(c => c?.musicResponsiveListItemFlexColumnRenderer?.text).find(v => parseDuration(v) != null);
+
+  return {
+    id: videoId, videoId, title,
+    artist: artists.join(', ') || runs.find(r => r?.text && r.text !== title && !/[•·]/.test(r.text))?.text || 'YouTube Music',
+    album: albumRun?.text || '', duration: parseDuration(durationValue),
+    image: bestThumb(renderer), source: 'youtube'
+  };
+}
+
+function parseTwoRow(renderer) {
+  const endpoint = renderer.navigationEndpoint?.watchEndpoint || findWatchEndpoint(renderer);
+  const videoId = endpoint?.videoId;
+  if (!videoId) return null;
+  const title = text(renderer.title) || 'Unknown title';
+  const runs = renderer.subtitle?.runs || [];
+  const artistRuns = runs.filter(r => r?.navigationEndpoint?.browseEndpoint?.browseId?.startsWith('UC'));
+  const albumRun = runs.find(r => r?.navigationEndpoint?.browseEndpoint?.browseId?.startsWith('MPR'));
+  return {
+    id: videoId, videoId, title,
+    artist: artistRuns.map(r => r.text).join(', ') || runs.filter(r => r?.text && ![' • ', ' · '].includes(r.text)).map(r => r.text).slice(0, 1).join('') || 'YouTube Music',
+    album: albumRun?.text || '', duration: null,
+    image: bestThumb(renderer), source: 'youtube'
+  };
+}
+
+function parsePanel(renderer) {
+  const videoId = renderer.videoId || renderer.navigationEndpoint?.watchEndpoint?.videoId;
+  if (!videoId) return null;
+  const title = text(renderer.title) || 'Unknown title';
+  const bylineRuns = renderer.longBylineText?.runs || renderer.shortBylineText?.runs || [];
+  const artists = bylineRuns.filter(r => r?.navigationEndpoint?.browseEndpoint?.browseId?.startsWith('UC')).map(r => r.text).filter(Boolean);
+  const albumRun = bylineRuns.find(r => r?.navigationEndpoint?.browseEndpoint?.browseId?.startsWith('MPR'));
+  return {
+    id: videoId, videoId, title,
+    artist: artists.join(', ') || text(renderer.shortBylineText) || 'YouTube Music',
+    album: albumRun?.text || '', duration: parseDuration(renderer.lengthText),
+    image: bestThumb(renderer), source: 'youtube'
+  };
+}
+
+function uniqueTracks(items, limit = 50) {
+  const seen = new Set();
+  const out = [];
+  for (const item of items) {
+    if (!item?.videoId || seen.has(item.videoId)) continue;
+    seen.add(item.videoId);
+    out.push(item);
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
+function extractTracks(data, limit = 40) {
+  const responsive = walk(data, 'musicResponsiveListItemRenderer').map(parseResponsive);
+  const twoRow = walk(data, 'musicTwoRowItemRenderer').map(parseTwoRow);
+  return uniqueTracks([...responsive, ...twoRow].filter(Boolean), limit);
+}
+
+function extractPanelTracks(data, limit = 50) {
+  return uniqueTracks(walk(data, 'playlistPanelVideoRenderer').map(parsePanel).filter(Boolean), limit);
+}
+
+function findAutomix(data) {
+  for (const item of walk(data, 'automixPlaylistVideoRenderer')) {
+    const ep = item?.navigationEndpoint?.watchPlaylistEndpoint || item?.navigationEndpoint?.watchEndpoint;
+    if (ep?.playlistId || ep?.videoId) return ep;
+  }
+  return null;
+}
+
+function responseVisitorData(data) {
+  return data?.responseContext?.visitorData || null;
+}
+
+async function innerTube(endpoint, body = {}, clientKey = 'YTMUSIC', session = {}) {
+  const client = CLIENTS[clientKey] || CLIENTS.YTMUSIC;
+  const hl = String(session.hl || 'en').slice(0, 8);
+  const gl = String(session.gl || 'US').slice(0, 3).toUpperCase();
+  const clientBody = {
+    clientName: client.name,
+    clientVersion: client.version,
+    ...(client.localeFields === false ? {} : { hl, gl }),
+    ...(client.extra || {})
+  };
+  if (session.visitorData) clientBody.visitorData = String(session.visitorData).slice(0, 500);
+
+  const requestBody = { context: { client: clientBody }, ...body };
+  const headers = {
+    'Content-Type': 'application/json',
+    'X-Goog-Api-Key': API_KEY,
+    'X-Goog-Api-Format-Version': '1',
+    'X-YouTube-Client-Name': client.id,
+    'X-YouTube-Client-Version': client.version,
+    'Origin': client.origin,
+    'Referer': client.referer,
+    'User-Agent': client.userAgent,
+    'Accept-Language': `${hl},en;q=0.8`
+  };
+  if (session.visitorData) headers['X-Goog-Visitor-Id'] = String(session.visitorData).slice(0, 500);
+
+  const res = await fetch(`${client.base}/${endpoint}?key=${encodeURIComponent(API_KEY)}&prettyPrint=false`, {
+    method: 'POST', headers, body: JSON.stringify(requestBody)
+  });
+
+  const raw = await res.text();
+  let data;
+  try { data = JSON.parse(raw); } catch { data = { raw: raw.slice(0, 500) }; }
+  if (!res.ok || data?.error) {
+    const message = data?.error?.message || `InnerTube request failed (${res.status})`;
+    const err = new Error(message);
+    err.status = res.status || 502;
+    err.details = data;
+    throw err;
+  }
+  return data;
+}
+
+async function searchTracks(query, session) {
+  const data = await innerTube('search', { query, params: SONG_FILTER }, 'YTMUSIC', session);
+  let tracks = extractTracks(data, 30);
+  let visitorData = responseVisitorData(data);
+  if (!tracks.length) {
+    const fallback = await innerTube('search', { query }, 'YTMUSIC', { ...session, visitorData: visitorData || session.visitorData });
+    tracks = extractTracks(fallback, 30);
+    visitorData = responseVisitorData(fallback) || visitorData;
+  }
+  return { tracks, visitorData };
+}
+
+async function homeTracks(session) {
+  let visitorData = session.visitorData || null;
+  for (const browseId of ['FEmusic_home', 'FEmusic_explore']) {
+    try {
+      const data = await innerTube('browse', { browseId }, 'YTMUSIC', { ...session, visitorData });
+      visitorData = responseVisitorData(data) || visitorData;
+      const tracks = extractTracks(data, 36);
+      if (tracks.length >= 6) return { tracks, visitorData };
+    } catch {}
+  }
+  const fallback = await searchTracks('Top songs', { ...session, visitorData });
+  return { tracks: fallback.tracks, visitorData: fallback.visitorData || visitorData };
+}
+
+async function autoplayTracks(videoId, session) {
+  let data = await innerTube('next', {
+    videoId, enablePersistentPlaylistPanel: true, isAudioOnly: true
+  }, 'YTMUSIC', session);
+
+  let visitorData = responseVisitorData(data) || session.visitorData || null;
+  let tracks = extractPanelTracks(data, 50).filter(t => t.videoId !== videoId);
+  if (tracks.length < 4) {
+    const auto = findAutomix(data);
+    if (auto) {
+      try {
+        data = await innerTube('next', {
+          videoId: auto.videoId || videoId,
+          playlistId: auto.playlistId,
+          params: auto.params,
+          enablePersistentPlaylistPanel: true,
+          isAudioOnly: true
+        }, 'YTMUSIC', { ...session, visitorData });
+        visitorData = responseVisitorData(data) || visitorData;
+        tracks = uniqueTracks([...tracks, ...extractPanelTracks(data, 50)].filter(t => t.videoId !== videoId), 50);
+      } catch {}
+    }
+  }
+  return { tracks, visitorData };
+}
+
+function chooseAudioFormat(data) {
+  const formats = [
+    ...(data?.streamingData?.adaptiveFormats || []),
+    ...(data?.streamingData?.formats || [])
+  ].filter(f => String(f?.mimeType || '').startsWith('audio/') && f?.url);
+
+  formats.sort((a, b) => {
+    const aMp4 = String(a.mimeType || '').includes('audio/mp4') ? 1 : 0;
+    const bMp4 = String(b.mimeType || '').includes('audio/mp4') ? 1 : 0;
+    if (aMp4 !== bMp4) return bMp4 - aMp4;
+    return Number(b.averageBitrate || b.bitrate || 0) - Number(a.averageBitrate || a.bitrate || 0);
+  });
+  return formats[0] || null;
+}
+
+async function tryPlayer(videoId, clientKey, session) {
+  const body = {
+    videoId,
+    racyCheckOk: true,
+    contentCheckOk: true,
+    playbackContext: { contentPlaybackContext: { html5Preference: 'HTML5_PREF_WANTS' } }
+  };
+  const data = await innerTube('player', body, clientKey, session);
+  const format = chooseAudioFormat(data);
+  const hls = data?.streamingData?.hlsManifestUrl || null;
+  const meta = {
+    expiresInSeconds: Number(data?.streamingData?.expiresInSeconds || 0) || 0,
+    duration: Number(data?.videoDetails?.lengthSeconds || 0) || null,
+    title: data?.videoDetails?.title || null,
+    artist: data?.videoDetails?.author || null,
+    image: bestThumb(data?.videoDetails?.thumbnail) || null,
+    visitorData: responseVisitorData(data) || session.visitorData || null,
+    client: clientKey
+  };
+  return { data, format, hls, meta };
+}
+
+export async function resolvePlayer(videoId, session) {
+  const errors = [];
+
+  // Android VR currently tends to return usable adaptive audio without a PO token.
+  for (const client of ['ANDROID_VR', 'IOS', 'ANDROID']) {
+    try {
+      const result = await tryPlayer(videoId, client, session);
+      if (result.format) {
+        return {
+          streamUrl: result.format.url,
+          streamType: 'audio',
+          mimeType: result.format.mimeType || '',
+          bitrate: Number(result.format.averageBitrate || result.format.bitrate || 0) || null,
+          contentLength: result.format.contentLength ? Number(result.format.contentLength) : null,
+          ...result.meta
+        };
+      }
+      if (result.hls) return { streamUrl: result.hls, streamType: 'hls', mimeType: 'application/vnd.apple.mpegurl', bitrate: null, contentLength: null, ...result.meta };
+      errors.push(`${client}: ${result.data?.playabilityStatus?.status || 'no playable stream'}`);
+    } catch (err) {
+      errors.push(`${client}: ${err.message}`);
+    }
+  }
+
+  // Safari/MWEB are useful fallbacks on iPhone/iPad because they can return HLS.
+  for (const client of ['WEB_SAFARI', 'MWEB']) {
+    try {
+      const result = await tryPlayer(videoId, client, session);
+      if (result.hls) return { streamUrl: result.hls, streamType: 'hls', mimeType: 'application/vnd.apple.mpegurl', bitrate: null, contentLength: null, ...result.meta };
+      if (result.format) return { streamUrl: result.format.url, streamType: 'audio', mimeType: result.format.mimeType || '', bitrate: Number(result.format.averageBitrate || result.format.bitrate || 0) || null, contentLength: result.format.contentLength ? Number(result.format.contentLength) : null, ...result.meta };
+      errors.push(`${client}: ${result.data?.playabilityStatus?.status || 'no playable stream'}`);
+    } catch (err) {
+      errors.push(`${client}: ${err.message}`);
+    }
+  }
+
+  const err = new Error('No playable stream was returned for this track.');
+  err.status = 502;
+  err.details = errors;
+  throw err;
+}
+
+const json = (statusCode, body) => ({
+  statusCode,
+  headers: {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Cache-Control': 'no-store',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Methods': 'POST,OPTIONS'
+  },
+  body: JSON.stringify(body)
+});
+
+export const handler = async (event) => {
+  if (event.httpMethod === 'OPTIONS') return json(204, {});
+  if (event.httpMethod !== 'POST') return json(405, { error: 'POST only' });
+
+  try {
+    const body = JSON.parse(event.body || '{}');
+    const action = body.action;
+    const session = {
+      hl: body.locale?.hl,
+      gl: body.locale?.gl,
+      visitorData: body.visitorData || null
+    };
+
+    if (action === 'search') {
+      const query = String(body.query || '').trim();
+      if (!query) return json(400, { error: 'Missing query' });
+      return json(200, await searchTracks(query, session));
+    }
+    if (action === 'home') return json(200, await homeTracks(session));
+    if (action === 'next') {
+      const videoId = String(body.videoId || '').trim();
+      if (!videoId) return json(400, { error: 'Missing videoId' });
+      return json(200, await autoplayTracks(videoId, session));
+    }
+    if (action === 'player') {
+      const videoId = String(body.videoId || '').trim();
+      if (!videoId) return json(400, { error: 'Missing videoId' });
+      return json(200, await resolvePlayer(videoId, session));
+    }
+    return json(400, { error: 'Unknown action' });
+  } catch (err) {
+    return json(Number(err.status || 500), {
+      error: err.message || 'InnerTube request failed',
+      details: err.details || undefined
+    });
+  }
+};
