@@ -359,7 +359,7 @@ async function playTrack(id, {keepQueue=false} = {}) {
     state.isPlaying = true;
   } catch (err) {
     state.isPlaying = false;
-    showToast(t.source === 'youtube' ? 'Loading failed — try play again.' : 'Tap play once to allow audio.');
+    if (t.source === 'youtube') showToast('Stream wird geladen…');
   }
   syncPlaybackUI();
   renderQueue();
@@ -628,11 +628,14 @@ audio.addEventListener('error',()=>{
   if (t?.source === 'youtube' && streamRetryId !== t.id) {
     streamRetryId = t.id;
     const pos = Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
-    const wasPlaying = state.isPlaying;
     setTimeout(() => {
       audio.src = `${audioUrl(t)}&retry=${Date.now()}`;
       audio.load();
-      audio.addEventListener('loadedmetadata', () => { if (pos > 0 && audio.duration > pos) audio.currentTime = pos; if (wasPlaying) audio.play().catch(()=>{}); }, {once:true});
+      audio.addEventListener('loadedmetadata', () => {
+        if (pos > 0 && audio.duration > pos) audio.currentTime = pos;
+        audio.play().catch(() => {});
+      }, {once:true});
+      audio.play().catch(() => {});
     }, 250);
   } else showToast('This track could not be loaded.');
 });
