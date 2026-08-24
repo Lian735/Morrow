@@ -327,39 +327,58 @@ async function tryPlayer(videoId, clientKey, session) {
   return { data, format, hls, meta };
 }
 
-export async function resolvePlayer(videoId, session) {
+function playerCandidates(result, preferHls = false) {
+  const audio = result.format ? {
+    streamUrl: result.format.url,
+    streamType: 'audio',
+    mimeType: result.format.mimeType || '',
+    bitrate: Number(result.format.averageBitrate || result.format.bitrate || 0) || null,
+    contentLength: result.format.contentLength ? Number(result.format.contentLength) : null,
+    ...result.meta
+  } : null;
+  const hls = result.hls ? {
+    streamUrl: result.hls,
+    streamType: 'hls',
+    mimeType: 'application/vnd.apple.mpegurl',
+    bitrate: null,
+    contentLength: null,
+    ...result.meta
+  } : null;
+  return (preferHls ? [hls, audio] : [audio, hls]).filter(Boolean);
+}
+
+export async function resolvePlayer(videoId, session = {}, verifyCandidate = null) {
   const errors = [];
+  const clients = [
+    { key: 'ANDROID_VR', preferHls: false },
+    { key: 'IOS', preferHls: false },
+    { key: 'ANDROID', preferHls: false },
+    { key: 'WEB_SAFARI', preferHls: true },
+    { key: 'MWEB', preferHls: true }
+  ];
 
-  // Android VR currently tends to return usable adaptive audio without a PO token.
-  for (const client of ['ANDROID_VR', 'IOS', 'ANDROID']) {
+  // A player response can contain a signed URL that is already unusable from the
+  // current edge location. When supplied, verifyCandidate must actually open the
+  // stream; a failed candidate then falls through to the next InnerTube client.
+  for (const client of clients) {
     try {
-      const result = await tryPlayer(videoId, client, session);
-      if (result.format) {
-        return {
-          streamUrl: result.format.url,
-          streamType: 'audio',
-          mimeType: result.format.mimeType || '',
-          bitrate: Number(result.format.averageBitrate || result.format.bitrate || 0) || null,
-          contentLength: result.format.contentLength ? Number(result.format.contentLength) : null,
-          ...result.meta
-        };
+      const result = await tryPlayer(videoId, client.key, session);
+      const candidates = playerCandidates(result, client.preferHls);
+      if (!candidates.length) {
+        errors.push(`${client.key}: ${result.data?.playabilityStatus?.status || 'no playable stream'}`);
+        continue;
       }
-      if (result.hls) return { streamUrl: result.hls, streamType: 'hls', mimeType: 'application/vnd.apple.mpegurl', bitrate: null, contentLength: null, ...result.meta };
-      errors.push(`${client}: ${result.data?.playabilityStatus?.status || 'no playable stream'}`);
-    } catch (err) {
-      errors.push(`${client}: ${err.message}`);
-    }
-  }
 
-  // Safari/MWEB are useful fallbacks on iPhone/iPad because they can return HLS.
-  for (const client of ['WEB_SAFARI', 'MWEB']) {
-    try {
-      const result = await tryPlayer(videoId, client, session);
-      if (result.hls) return { streamUrl: result.hls, streamType: 'hls', mimeType: 'application/vnd.apple.mpegurl', bitrate: null, contentLength: null, ...result.meta };
-      if (result.format) return { streamUrl: result.format.url, streamType: 'audio', mimeType: result.format.mimeType || '', bitrate: Number(result.format.averageBitrate || result.format.bitrate || 0) || null, contentLength: result.format.contentLength ? Number(result.format.contentLength) : null, ...result.meta };
-      errors.push(`${client}: ${result.data?.playabilityStatus?.status || 'no playable stream'}`);
+      for (const candidate of candidates) {
+        try {
+          if (verifyCandidate) await verifyCandidate(candidate);
+          return candidate;
+        } catch (err) {
+          errors.push(`${client.key}/${candidate.streamType}: ${err.message}`);
+        }
+      }
     } catch (err) {
-      errors.push(`${client}: ${err.message}`);
+      errors.push(`${client.key}: ${err.message}`);
     }
   }
 
@@ -369,24 +388,30 @@ export async function resolvePlayer(videoId, session) {
   throw err;
 }
 
-const json = (statusCode, body) => ({
-  statusCode,
+const json = (status, body) => new Response(JSON.stringify(body), {
+  status,
   headers: {
     'Content-Type': 'application/json; charset=utf-8',
     'Cache-Control': 'no-store',
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type',
     'Access-Control-Allow-Methods': 'POST,OPTIONS'
-  },
-  body: JSON.stringify(body)
+  }
 });
 
-export const handler = async (event) => {
-  if (event.httpMethod === 'OPTIONS') return json(204, {});
-  if (event.httpMethod !== 'POST') return json(405, { error: 'POST only' });
+export default async (request) => {
+  if (request.method === 'OPTIONS') return new Response(null, {
+    status: 204,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Headers': 'Content-Type',
+      'Access-Control-Allow-Methods': 'POST,OPTIONS'
+    }
+  });
+  if (request.method !== 'POST') return json(405, { error: 'POST only' });
 
   try {
-    const body = JSON.parse(event.body || '{}');
+    const body = await request.json();
     const action = body.action;
     const session = {
       hl: body.locale?.hl,

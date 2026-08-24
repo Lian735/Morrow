@@ -1,5 +1,20 @@
 import { resolvePlayer } from '../functions/innertube.mjs';
 
+const CLIENT_USER_AGENTS = {
+  ANDROID_VR: 'com.google.android.apps.youtube.vr.oculus/1.65.10 (Linux; U; Android 12L; eureka-user Build/SQ3A.220605.009.A1) gzip',
+  IOS: 'com.google.ios.youtube/20.11.6 (iPhone10,4; U; CPU iOS 16_7_7 like Mac OS X)',
+  ANDROID: 'com.google.android.youtube/21.03.36 (Linux; U; Android 16; en_US; SM-S908E Build/TP1A.220624.014) gzip',
+  WEB_SAFARI: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.5 Safari/605.1.15',
+  MWEB: 'Mozilla/5.0 (iPad; CPU OS 16_7_10 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1'
+};
+
+const CORS_HEADERS = {
+  'access-control-allow-origin': '*',
+  'access-control-allow-headers': 'Range',
+  'access-control-allow-methods': 'GET,HEAD,OPTIONS',
+  'access-control-expose-headers': 'Accept-Ranges,Content-Length,Content-Range,Content-Type'
+};
+
 const allowedUpstream = (url) => {
   try {
     const host = new URL(url).hostname;
@@ -22,18 +37,44 @@ const unb64url = (value) => {
   return new TextDecoder().decode(bytes);
 };
 
-async function proxyUpstream(request, upstreamUrl) {
-  if (!allowedUpstream(upstreamUrl)) return new Response('Blocked upstream', { status: 403 });
+const proxiedUrl = (upstreamUrl) => `/api/audio?u=${encodeURIComponent(b64url(upstreamUrl))}`;
+
+function rewriteHls(source, base) {
+  return source.split('\n').map(line => {
+    const trimmed = line.trim();
+    if (!trimmed) return line;
+    if (!trimmed.startsWith('#')) {
+      try {
+        const absolute = new URL(trimmed, base).href;
+        return allowedUpstream(absolute) ? proxiedUrl(absolute) : line;
+      } catch { return line; }
+    }
+    return line.replace(/URI="([^"]+)"/g, (match, uri) => {
+      try {
+        const absolute = new URL(uri, base).href;
+        return allowedUpstream(absolute) ? `URI="${proxiedUrl(absolute)}"` : match;
+      } catch { return match; }
+    });
+  }).join('\n');
+}
+
+function clientFromUrl(upstreamUrl) {
+  const signedClient = new URL(upstreamUrl).searchParams.get('c');
+  return signedClient === 'ANDROID_VR' || signedClient === 'IOS' || signedClient === 'ANDROID'
+    || signedClient === 'WEB_SAFARI' || signedClient === 'MWEB' ? signedClient : null;
+}
+
+export async function proxyUpstream(request, info) {
+  const upstreamUrl = typeof info === 'string' ? info : info.streamUrl;
+  if (!allowedUpstream(upstreamUrl)) throw new Error('Blocked audio upstream');
   const headers = new Headers();
   const range = request.headers.get('range');
   if (range) headers.set('range', range);
   headers.set('accept', '*/*');
   headers.set('origin', 'https://www.youtube.com');
   headers.set('referer', 'https://www.youtube.com/');
-  const signedClient = new URL(upstreamUrl).searchParams.get('c');
-  if (signedClient === 'ANDROID_VR') headers.set('user-agent', 'com.google.android.apps.youtube.vr.oculus/1.65.10 (Linux; U; Android 12L; eureka-user Build/SQ3A.220605.009.A1) gzip');
-  else if (signedClient === 'IOS') headers.set('user-agent', 'com.google.ios.youtube/20.11.6 (iPhone10,4; U; CPU iOS 16_7_7 like Mac OS X)');
-  else headers.set('user-agent', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.5 Safari/605.1.15');
+  const client = typeof info === 'object' && info.client ? info.client : clientFromUrl(upstreamUrl);
+  headers.set('user-agent', CLIENT_USER_AGENTS[client] || CLIENT_USER_AGENTS.WEB_SAFARI);
 
   const upstream = await fetch(upstreamUrl, {
     method: request.method,
@@ -41,34 +82,39 @@ async function proxyUpstream(request, upstreamUrl) {
     redirect: 'follow'
   });
   if (!upstream.ok) {
-    return new Response(`Upstream audio failed (${upstream.status})`, {
-      status: upstream.status,
-      headers: { 'cache-control': 'no-store', 'access-control-allow-origin': '*' }
-    });
+    upstream.body?.cancel().catch(() => {});
+    throw new Error(`Audio upstream returned ${upstream.status}`);
   }
-  const type = upstream.headers.get('content-type') || '';
+  const type = (upstream.headers.get('content-type') || '').toLowerCase();
+  const baseType = type.split(';')[0].trim();
   const resolvedUpstreamUrl = upstream.url || upstreamUrl;
-  const isHls = type.includes('mpegurl') || new URL(resolvedUpstreamUrl).pathname.endsWith('.m3u8');
+  const isHls = (typeof info === 'object' && info.streamType === 'hls')
+    || type.includes('mpegurl') || new URL(resolvedUpstreamUrl).pathname.endsWith('.m3u8');
 
   if (isHls) {
+    if (request.method === 'HEAD') {
+      return new Response(null, {
+        status: upstream.status,
+        headers: { ...CORS_HEADERS, 'content-type': 'application/vnd.apple.mpegurl', 'cache-control': 'private, max-age=30' }
+      });
+    }
     const source = await upstream.text();
-    const base = resolvedUpstreamUrl;
-    const rewritten = source.split('\n').map(line => {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith('#')) return line;
-      let absolute;
-      try { absolute = new URL(trimmed, base).href; } catch { return line; }
-      if (!allowedUpstream(absolute)) return line;
-      return `/api/audio?u=${encodeURIComponent(b64url(absolute))}`;
-    }).join('\n');
-    return new Response(request.method === 'HEAD' ? null : rewritten, {
+    if (!source.trimStart().startsWith('#EXTM3U')) throw new Error(`Invalid HLS response (${baseType || 'unknown type'})`);
+    return new Response(rewriteHls(source, resolvedUpstreamUrl), {
       status: upstream.status,
       headers: {
+        ...CORS_HEADERS,
         'content-type': 'application/vnd.apple.mpegurl',
-        'cache-control': 'private, max-age=30',
-        'access-control-allow-origin': '*'
+        'cache-control': 'private, max-age=30'
       }
     });
+  }
+
+  const playableType = baseType.startsWith('audio/') || baseType === 'video/mp4'
+    || baseType === 'video/mp2t' || baseType === 'application/octet-stream';
+  if (!playableType) {
+    upstream.body?.cancel().catch(() => {});
+    throw new Error(`Invalid audio response (${baseType || 'unknown type'})`);
   }
 
   const out = new Headers();
@@ -76,21 +122,22 @@ async function proxyUpstream(request, upstreamUrl) {
     const value = upstream.headers.get(name);
     if (value) out.set(name, value);
   }
+  for (const [name, value] of Object.entries(CORS_HEADERS)) out.set(name, value);
   out.set('cache-control', 'private, max-age=60');
-  out.set('access-control-allow-origin', '*');
+  out.set('x-content-type-options', 'nosniff');
   return new Response(request.method === 'HEAD' ? null : upstream.body, { status: upstream.status, headers: out });
 }
 
 export default async (request) => {
   if (request.method === 'OPTIONS') {
-    return new Response(null, { status: 204, headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'Range', 'access-control-allow-methods': 'GET,HEAD,OPTIONS' } });
+    return new Response(null, { status: 204, headers: CORS_HEADERS });
   }
   if (!['GET','HEAD'].includes(request.method)) return new Response('GET only', { status: 405 });
 
   try {
     const url = new URL(request.url);
     const encoded = url.searchParams.get('u');
-    if (encoded) return await proxyUpstream(request, unb64url(encoded));
+    if (encoded) return await proxyUpstream(request, { streamUrl: unb64url(encoded), streamType: 'auto' });
 
     const videoId = (url.searchParams.get('v') || '').trim();
     if (!/^[A-Za-z0-9_-]{6,20}$/.test(videoId)) return new Response('Invalid video id', { status: 400 });
@@ -99,9 +146,16 @@ export default async (request) => {
       gl: (url.searchParams.get('gl') || 'US').slice(0, 3),
       visitorData: url.searchParams.get('visitorData') || null
     };
-    const info = await resolvePlayer(videoId, session);
-    return await proxyUpstream(request, info.streamUrl);
+    let verifiedResponse = null;
+    await resolvePlayer(videoId, session, async (candidate) => {
+      verifiedResponse = await proxyUpstream(request, candidate);
+    });
+    return verifiedResponse;
   } catch (error) {
-    return new Response(error?.message || 'Audio stream failed', { status: 502, headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' } });
+    console.error('Morrow audio error:', error?.message || error);
+    return new Response('Audio stream failed', {
+      status: 502,
+      headers: { ...CORS_HEADERS, 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' }
+    });
   }
 };
