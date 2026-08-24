@@ -309,6 +309,19 @@ async function autoplayTracks(videoId, session) {
   return { tracks, visitorData };
 }
 
+export async function lookupTrackMetadata(videoId, session = {}) {
+  const data = await innerTube('next', {
+    videoId, enablePersistentPlaylistPanel: true, isAudioOnly: true
+  }, 'YTMUSIC', session);
+  const track = extractPanelTracks(data, 50).find(item => item.videoId === videoId);
+  if (!track) throw new Error('Track metadata could not be resolved.');
+  return {
+    title: track.title,
+    artist: track.artist,
+    visitorData: responseVisitorData(data) || session.visitorData || null
+  };
+}
+
 function chooseAudioFormat(data) {
   const formats = [
     ...(data?.streamingData?.adaptiveFormats || []),

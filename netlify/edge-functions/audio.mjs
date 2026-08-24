@@ -1,4 +1,4 @@
-import { resolvePlayer, resolvePublicFallback } from '../functions/innertube.mjs';
+import { lookupTrackMetadata, resolvePlayer, resolvePublicFallback } from '../functions/innertube.mjs';
 
 const CLIENT_USER_AGENTS = {
   ANDROID_VR: 'com.google.android.apps.youtube.vr.oculus/1.65.10 (Linux; U; Android 12L; eureka-user Build/SQ3A.220605.009.A1) gzip',
@@ -153,9 +153,14 @@ export default async (request) => {
     try {
       await resolvePlayer(videoId, session, verifyCandidate);
     } catch (primaryError) {
-      const title = (url.searchParams.get('title') || '').trim().slice(0, 160);
-      const artist = (url.searchParams.get('artist') || '').trim().slice(0, 120);
-      if (!title) throw primaryError;
+      let title = (url.searchParams.get('title') || '').trim().slice(0, 160);
+      let artist = (url.searchParams.get('artist') || '').trim().slice(0, 120);
+      if (!title) {
+        const metadata = await lookupTrackMetadata(videoId, session);
+        title = metadata.title;
+        artist = metadata.artist;
+        session.visitorData = metadata.visitorData;
+      }
       const fallback = await resolvePublicFallback({ title, artist, rejectedId: videoId }, session, verifyCandidate);
       verifiedResponse.headers.set('x-morrow-playback-fallback', fallback.fallbackVideoId);
     }
