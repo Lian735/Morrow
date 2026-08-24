@@ -77,6 +77,10 @@ let recoverySerial = 0;
 let visualizerFrame = 0;
 let analyser = null;
 let analyserData = null;
+let youtubePlayer = null;
+let youtubeReadyPromise = null;
+let youtubeFallbackFor = null;
+let playbackPosition = Number(restoredPlayback?.position || 0);
 
 function esc(value) {
   return String(value ?? '').replace(/[&<>'"]/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;' }[char]));
@@ -177,7 +181,7 @@ function persist() {
     track: trackSnapshot(currentTrack()),
     queueTracks: state.queue.map(getTrack).filter(Boolean).map(trackSnapshot),
     queueIndex: state.queueIndex,
-    position: Number(audio.currentTime || 0),
+    position: playbackTime(),
     volume: audio.volume,
     wasPlaying: state.playIntent
   }));
@@ -197,13 +201,54 @@ async function api(action, payload = {}) {
   return data;
 }
 
-function audioUrl(track) {
-  const { hl, gl } = locale();
-  const params = new URLSearchParams({ v:track.playbackVideoId || track.videoId || track.id, hl, gl });
-  if (track.title) params.set('title', String(track.title).slice(0,160));
-  if (track.artist) params.set('artist', String(track.artist).slice(0,120));
-  if (state.visitorData) params.set('visitorData', state.visitorData);
-  return `/api/audio?${params}`;
+function youtubeReady() {
+  if (youtubeReadyPromise) return youtubeReadyPromise;
+  youtubeReadyPromise = new Promise((resolve, reject) => {
+    const create = () => {
+      if (youtubePlayer) return resolve(youtubePlayer);
+      youtubePlayer = new YT.Player('youtubePlayerHost', {
+        width: 200,
+        height: 200,
+        playerVars: { autoplay:0, controls:0, disablekb:1, playsinline:1, origin:location.origin },
+        events: {
+          onReady: event => {
+            event.target.setVolume(audio.volume * 100);
+            if (playbackPosition > 0) event.target.seekTo(playbackPosition, false);
+            resolve(event.target);
+          },
+          onStateChange: event => {
+            if (event.data === YT.PlayerState.PLAYING) { $('#miniPlayer').classList.remove('is-buffering'); setPlaying(true); }
+            else if (event.data === YT.PlayerState.PAUSED) { setPlaying(false); persist(); }
+            else if (event.data === YT.PlayerState.BUFFERING) $('#miniPlayer').classList.add('is-buffering');
+            else if (event.data === YT.PlayerState.ENDED) { setPlaying(false); nextTrack(false); }
+          },
+          onError: () => recoverYouTubePlayback(currentTrack())
+        }
+      });
+    };
+    if (window.YT?.Player) return create();
+    const previous = window.onYouTubeIframeAPIReady;
+    window.onYouTubeIframeAPIReady = () => { previous?.(); create(); };
+    const script = document.createElement('script');
+    script.src = 'https://www.youtube.com/iframe_api';
+    script.onerror = () => reject(new Error('YouTube player API failed to load'));
+    document.head.appendChild(script);
+  });
+  return youtubeReadyPromise;
+}
+
+function playbackTime() {
+  try { return Number(youtubePlayer?.getCurrentTime?.() || playbackPosition || 0); }
+  catch { return playbackPosition || 0; }
+}
+function playbackDuration() {
+  try { return Number(youtubePlayer?.getDuration?.() || currentTrack()?.duration || 0); }
+  catch { return Number(currentTrack()?.duration || 0); }
+}
+function seekPlayback(seconds) {
+  playbackPosition = Math.max(0, Number(seconds) || 0);
+  try { youtubePlayer?.seekTo?.(playbackPosition, true); } catch {}
+  syncTime();
 }
 
 function showToast(message) {
@@ -431,37 +476,26 @@ async function hydrateRadio(seedId) {
   }
 }
 
-function setAudioSource(track, position = 0) {
-  recoverySerial += 1;
-  audio.src = audioUrl(track);
-  audio.load();
-  if (position > 0) {
-    const applyPosition = () => { try { audio.currentTime = Math.min(position,audio.duration || position); } catch {} };
-    audio.addEventListener('loadedmetadata', applyPosition, { once:true });
-  }
-}
-
-async function recoverStream(track) {
-  if (!track || state.streamRecoveryFor === track.id || PREVIEW_MODE) {
+async function recoverYouTubePlayback(track) {
+  if (!track || youtubeFallbackFor === track.id || PREVIEW_MODE) {
     state.playIntent = false;
     setPlaying(false);
     showToast(PREVIEW_MODE ? 'Playback is disabled in visual preview.' : 'This track is unavailable right now.');
     return;
   }
-  state.streamRecoveryFor = track.id;
+  youtubeFallbackFor = track.id;
   const serial = ++recoverySerial;
   try {
     const data = await api('public',{ title:track.title, artist:track.artist, rejectedId:track.playbackVideoId || track.videoId || track.id });
     if (serial !== recoverySerial) return;
     track.playbackVideoId = data.videoId;
-    audio.src = audioUrl(track);
-    audio.load();
-    await audio.play();
+    const player = await youtubeReady();
+    player.loadVideoById(data.videoId);
   } catch (error) {
     state.playIntent = false;
     setPlaying(false);
     showToast('This track is unavailable right now.');
-    console.warn('Audio recovery failed:', error);
+    console.warn('YouTube recovery failed:', error);
   }
 }
 
@@ -479,19 +513,27 @@ async function playTrack(id, { keepQueue = false, buildRadio = true } = {}) {
   if (changed) {
     state.currentId = id;
     state.streamRecoveryFor = null;
+    youtubeFallbackFor = null;
+    playbackPosition = 0;
     state.playedCount[id] = (state.playedCount[id] || 0) + 1;
     state.history = [id, ...state.history.filter(item => item !== id)].slice(0,80);
     updateMediaSession(track);
     syncPlayerMeta();
-    setAudioSource(track);
   }
 
   if (PREVIEW_MODE) {
     setPlaying(false);
     showToast('Visual preview — connect the deployed audio service to play.');
   } else {
-    try { await audio.play(); }
-    catch (error) { await recoverStream(track); }
+    try {
+      const player = await youtubeReady();
+      const videoId = track.playbackVideoId || track.videoId || track.id;
+      if (changed || player.getVideoData?.().video_id !== videoId) player.loadVideoById(videoId);
+      else player.playVideo();
+    } catch (error) {
+      setPlaying(false);
+      showToast('YouTube player could not start.');
+    }
   }
   persist();
   renderQueue();
@@ -501,13 +543,14 @@ async function playTrack(id, { keepQueue = false, buildRadio = true } = {}) {
 
 function togglePlay() {
   if (!currentTrack()) return showToast('Choose a song or radio to begin.');
-  if (audio.paused) {
+  if (!youtubePlayer) return playTrack(state.currentId,{ keepQueue:true, buildRadio:false });
+  if (!state.isPlaying) {
     state.playIntent = true;
     if (PREVIEW_MODE) return showToast('Visual preview — playback is not connected.');
-    audio.play().catch(() => recoverStream(currentTrack()));
+    youtubePlayer.playVideo();
   } else {
     state.playIntent = false;
-    audio.pause();
+    youtubePlayer.pauseVideo();
   }
 }
 
@@ -526,10 +569,10 @@ async function nextTrack(manual = true) {
 }
 
 function previousTrack() {
-  if (audio.currentTime > 4) { audio.currentTime = 0; return; }
+  if (playbackTime() > 4) { seekPlayback(0); return; }
   const previousId = state.queue[state.queueIndex - 1];
   if (previousId) playTrack(previousId,{ keepQueue:true });
-  else audio.currentTime = 0;
+  else seekPlayback(0);
 }
 
 function startRadio(id) {
@@ -606,15 +649,15 @@ function setRangeProgress(element, ratio) {
 }
 
 function syncTime() {
-  const duration = Number.isFinite(audio.duration) ? audio.duration : Number(currentTrack()?.duration || 0);
-  const current = Number(audio.currentTime || 0);
+  const duration = playbackDuration();
+  const current = playbackTime();
   const ratio = duration ? current / duration : 0;
   const value = Math.round(ratio * 1000);
   ['#seek','#fullSeek'].forEach(selector => { const input=$(selector); input.value=String(value); setRangeProgress(input,ratio); });
   ['#elapsed','#fullElapsed'].forEach(selector => { $(selector).textContent=fmt(current); });
   ['#duration','#fullDuration'].forEach(selector => { $(selector).textContent=fmt(duration); });
   if ('mediaSession' in navigator && navigator.mediaSession.setPositionState && duration > 0) {
-    try { navigator.mediaSession.setPositionState({ duration, playbackRate:audio.playbackRate || 1, position:Math.min(current,duration) }); } catch {}
+    try { navigator.mediaSession.setPositionState({ duration, playbackRate:1, position:Math.min(current,duration) }); } catch {}
   }
 }
 
@@ -632,14 +675,14 @@ function updateMediaSession(track) {
 function configureMediaSession() {
   if (!('mediaSession' in navigator)) return;
   const handlers = {
-    play: () => { state.playIntent = true; audio.play().catch(() => recoverStream(currentTrack())); },
-    pause: () => { state.playIntent = false; audio.pause(); },
+    play: () => { state.playIntent = true; youtubePlayer?.playVideo?.(); },
+    pause: () => { state.playIntent = false; youtubePlayer?.pauseVideo?.(); },
     previoustrack: previousTrack,
     nexttrack: () => nextTrack(true),
-    seekbackward: details => { audio.currentTime = Math.max(0,audio.currentTime-(details.seekOffset || 10)); },
-    seekforward: details => { audio.currentTime = Math.min(audio.duration || Infinity,audio.currentTime+(details.seekOffset || 10)); },
-    seekto: details => { if (typeof details.seekTime === 'number') audio.currentTime = details.seekTime; },
-    stop: () => { state.playIntent = false; audio.pause(); audio.currentTime = 0; }
+    seekbackward: details => seekPlayback(playbackTime()-(details.seekOffset || 10)),
+    seekforward: details => seekPlayback(Math.min(playbackDuration() || Infinity,playbackTime()+(details.seekOffset || 10))),
+    seekto: details => { if (typeof details.seekTime === 'number') seekPlayback(details.seekTime); },
+    stop: () => { state.playIntent = false; youtubePlayer?.stopVideo?.(); seekPlayback(0); }
   };
   Object.entries(handlers).forEach(([action,handler]) => { try { navigator.mediaSession.setActionHandler(action,handler); } catch {} });
 }
@@ -648,23 +691,23 @@ function detectBackgroundPlayback() {
   const status = $('#backgroundPlaybackStatus');
   const note = $('#backgroundPlaybackNote');
   const platformNote = $('#platformNote');
-  const hasNativeAudio = typeof HTMLMediaElement !== 'undefined';
+  const hasYouTubePlayback = typeof HTMLIFrameElement !== 'undefined';
   const hasMediaSession = 'mediaSession' in navigator;
   const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
   const isiOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-  if (!hasNativeAudio) {
+  if (!hasYouTubePlayback) {
     status.textContent = 'Unavailable';
-    note.textContent = 'This browser does not expose native media playback.';
+    note.textContent = 'This browser cannot initialize the embedded music player.';
   } else if (hasMediaSession) {
     status.textContent = 'Supported';
-    note.textContent = 'Native audio with lock-screen and system media controls.';
+    note.textContent = 'System controls are connected to Morrow playback.';
   } else {
     status.textContent = 'Best effort';
-    note.textContent = 'Audio can continue, but system controls are not available here.';
+    note.textContent = 'Playback works, but system controls are not available here.';
   }
   platformNote.textContent = isiOS && !standalone
-    ? 'For the most reliable iPhone and iPad playback, add Morrow to the Home Screen and start the first track with a tap. iOS may still stop web audio under Low Power Mode or memory pressure.'
-    : 'Morrow uses the browser’s native audio pipeline. The operating system can still suspend any web app under battery, memory or network pressure.';
+    ? 'For the most reliable iPhone and iPad playback, add Morrow to the Home Screen and start the first track with a tap. iOS may still suspend embedded playback when the device locks.'
+    : 'Morrow keeps its YouTube playback surface mounted and connects supported operating-system media controls. Browser background restrictions can still apply.';
 }
 
 function openContextMenu(id, anchor) {
@@ -782,17 +825,7 @@ function closeFullPlayer() {
 }
 
 function setupVisualizer() {
-  if (analyser || !audio.captureStream || !window.AudioContext) return;
-  try {
-    const context = new AudioContext();
-    const stream = audio.captureStream();
-    const source = context.createMediaStreamSource(stream);
-    analyser = context.createAnalyser();
-    analyser.fftSize = 128;
-    analyser.smoothingTimeConstant = .82;
-    source.connect(analyser);
-    analyserData = new Uint8Array(analyser.frequencyBinCount);
-  } catch { analyser = null; }
+  analyser = null;
 }
 
 function drawVisualizer() {
@@ -807,8 +840,8 @@ function drawVisualizer() {
   const barWidth = (width-gap*(bars-1))/bars;
   context.fillStyle = 'rgba(247,247,245,.72)';
   for (let index=0; index<bars; index+=1) {
-    const signal = analyserData ? analyserData[Math.floor(index/bars*analyserData.length)]/255 : 0;
-    const barHeight = reduced ? 2 : Math.max(2,signal*height*.8);
+    const pulse = state.isPlaying && !reduced ? (Math.sin(Date.now()/360+index*.58)+1)/2 : 0;
+    const barHeight = reduced ? 2 : Math.max(2,pulse*height*.34);
     context.fillRect(index*(barWidth+gap),(height-barHeight)/2,barWidth,barHeight);
   }
   if (nowPlaying.classList.contains('is-open')) visualizerFrame=requestAnimationFrame(drawVisualizer);
@@ -817,7 +850,8 @@ function startVisualizer() { setupVisualizer(); cancelAnimationFrame(visualizerF
 function stopVisualizer() { cancelAnimationFrame(visualizerFrame); visualizerFrame=0; }
 
 function seekFrom(input) {
-  if (Number.isFinite(audio.duration) && audio.duration > 0) audio.currentTime = Number(input.value)/1000*audio.duration;
+  const duration = playbackDuration();
+  if (duration > 0) seekPlayback(Number(input.value)/1000*duration);
 }
 
 view.addEventListener('click', event => {
@@ -876,8 +910,8 @@ $('#likeCurrentBtn').addEventListener('click',()=>toggleLike());
 $('#fullLikeBtn').addEventListener('click',()=>toggleLike());
 $('#seek').addEventListener('input',event=>seekFrom(event.currentTarget));
 $('#fullSeek').addEventListener('input',event=>seekFrom(event.currentTarget));
-$('#volume').addEventListener('input',event=>{ audio.volume=Number(event.target.value); if (audio.volume>0) lastAudibleVolume=audio.volume; setRangeProgress(event.target,audio.volume); persist(); });
-$('#muteBtn').addEventListener('click',()=>{ if (audio.volume>0) { lastAudibleVolume=audio.volume; audio.volume=0; } else audio.volume=lastAudibleVolume; $('#volume').value=String(audio.volume); setRangeProgress($('#volume'),audio.volume); $('#muteBtn i').className=`ph ${audio.volume?'ph-speaker-high':'ph-speaker-slash'}`; });
+$('#volume').addEventListener('input',event=>{ audio.volume=Number(event.target.value); youtubePlayer?.setVolume?.(audio.volume*100); if (audio.volume>0) lastAudibleVolume=audio.volume; setRangeProgress(event.target,audio.volume); persist(); });
+$('#muteBtn').addEventListener('click',()=>{ if (audio.volume>0) { lastAudibleVolume=audio.volume; audio.volume=0; } else audio.volume=lastAudibleVolume; youtubePlayer?.setVolume?.(audio.volume*100); $('#volume').value=String(audio.volume); setRangeProgress($('#volume'),audio.volume); $('#muteBtn i').className=`ph ${audio.volume?'ph-speaker-high':'ph-speaker-slash'}`; });
 $('#playerQueueBtn').addEventListener('click',openDrawer);
 $('#nowQueueBtn').addEventListener('click',()=>{ closeFullPlayer(); openDrawer(); });
 $('#fullscreenBtn').addEventListener('click',openFullPlayer);
@@ -896,22 +930,13 @@ $('#queueList').addEventListener('click', event => {
   if (remove) { const index=Number(remove.dataset.removeQueue); if (index===state.queueIndex) return showToast('The current track cannot be removed'); state.queue.splice(index,1); if (index<state.queueIndex) state.queueIndex-=1; persist(); renderQueue(); }
 });
 
-audio.addEventListener('play',()=>{ state.playIntent=true; setPlaying(true); });
-audio.addEventListener('playing',()=>setPlaying(true));
-audio.addEventListener('pause',()=>{ setPlaying(false); persist(); });
-audio.addEventListener('ended',()=>nextTrack(false));
-audio.addEventListener('timeupdate',syncTime);
-audio.addEventListener('durationchange',syncTime);
-audio.addEventListener('waiting',()=>$('#miniPlayer').classList.add('is-buffering'));
-audio.addEventListener('canplay',()=>$('#miniPlayer').classList.remove('is-buffering'));
-audio.addEventListener('error',()=>{ if (state.playIntent && currentTrack()) recoverStream(currentTrack()); });
-
 document.addEventListener('visibilitychange',()=>{ persist(); if (!document.hidden) { syncPlaybackUI(); syncTime(); } });
 window.addEventListener('pagehide',persist);
 window.addEventListener('pageshow',event=>{ if (event.persisted) { syncPlayerMeta(); syncPlaybackUI(); syncTime(); } });
 window.addEventListener('online',()=>{ showToast('Back online'); if (state.sourceStatus==='offline') loadHome(); });
 window.addEventListener('offline',()=>showToast('Offline — saved music remains available'));
 
+setInterval(syncTime, 500);
 configureMediaSession();
 detectBackgroundPlayback();
 setAutoplay(state.autoplay);
@@ -923,10 +948,12 @@ syncTime();
 renderQueue();
 render();
 
-if (currentTrack() && !PREVIEW_MODE) {
-  setAudioSource(currentTrack(),Number(restoredPlayback?.position || 0));
-  updateMediaSession(currentTrack());
-}
+youtubeReady().then(player => {
+  if (!currentTrack() || PREVIEW_MODE) return;
+  const track=currentTrack();
+  player.cueVideoById({ videoId:track.playbackVideoId || track.videoId || track.id, startSeconds:playbackPosition });
+  updateMediaSession(track);
+}).catch(error=>console.warn('YouTube player unavailable:',error));
 loadHome();
 
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));

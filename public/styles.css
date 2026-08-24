@@ -289,7 +289,18 @@ input[type="range"]:hover::-webkit-slider-thumb, input[type="range"]:focus-visib
 .setting-note { margin-top: 16px; padding: 13px 14px; border-radius: 12px; background: rgba(255,255,255,.04); color: var(--muted); font-size: 11px; line-height: 1.5; }
 .toast { position: fixed; left: 50%; bottom: calc(var(--player-h) + 16px); z-index: 160; max-width: min(420px,calc(100vw - 30px)); padding: 11px 15px; border-radius: 12px; background: var(--white); color: var(--black); font-size: 12px; font-weight: 620; opacity: 0; transform: translate(-50%,10px); pointer-events: none; transition: opacity 150ms ease, transform 180ms var(--ease); }
 .toast.show { opacity: 1; transform: translate(-50%,0); }
-#youtubePlayerHost { position: fixed; width: 1px; height: 1px; left: -10px; bottom: -10px; opacity: 0; pointer-events: none; overflow: hidden; }
+#youtubePlayerHost {
+  position: fixed;
+  left: -10000px;
+  top: -10000px;
+  width: 200px;
+  height: 200px;
+  opacity: .001;
+  pointer-events: none;
+  overflow: hidden;
+  contain: strict;
+}
+#youtubePlayerHost iframe { width: 200px; height: 200px; border: 0; }
 
 .mobile-nav { display: none; }
 

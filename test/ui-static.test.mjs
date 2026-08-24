@@ -26,13 +26,14 @@ test('song action menu is contextual and closed by default', () => {
   assert.match(app, /data-context-action="add-queue"/);
 });
 
-test('native audio is the primary playback lifecycle', () => {
+test('hidden YouTube surface is the primary playback lifecycle', () => {
   assert.match(app, /const audio = \$\('#audio'\)/);
-  assert.match(app, /audio\.src = audioUrl\(track\)/);
-  assert.match(app, /await audio\.play\(\)/);
-  assert.doesNotMatch(app, /new YT\.Player|youtubeReady\(/);
+  assert.match(app, /new YT\.Player\('youtubePlayerHost'/);
+  assert.match(app, /player\.loadVideoById/);
   assert.match(app, /navigator\.mediaSession\.setActionHandler/);
   assert.match(app, /document\.addEventListener\('visibilitychange'/);
+  assert.match(css, /left:\s*-10000px/);
+  assert.doesNotMatch(css, /#youtubePlayerHost\s*\{[^}]*display:\s*none/s);
 });
 
 test('visual tokens stay neutral instead of using a fixed accent color', () => {
